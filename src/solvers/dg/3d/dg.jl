@@ -257,6 +257,27 @@ function create_thread_cache_3d(n_variables, n_nodes)
 end
 
 
+# Return an `unsafe_wrap`ped `Array` containing the variables in the
+# element `element_id` of `u` for a given DG method `dg`.
+# Do not use this if you don't understand the implications of `unsafe_wrap`.
+function unsafe_element_variables(u::Array{<:Any, 5}, dg::Dg3D, element_id)
+  idx = cartesian2linear(u, 1, 1, 1, 1, element_id)
+  p = pointer(u, idx)
+  unsafe_wrap(Array, p, (nvariables(dg), nnodes(dg), nnodes(dg), nnodes(dg)))
+end
+
+# Return an `unsafe_wrap`ped `Array` containing the variables in the
+# surface determined by `direction, element_id` of `u` for a given DG method `dg`.
+# Do not use this if you don't understand the implications of `unsafe_wrap`.
+function unsafe_surface_variables(u::Array{<:Any, 5}, dg::Dg3D, direction, element_id)
+  # idx = cartesian2linear(u, 1, 1, 1, idx1, idx2)
+  # There are 6 `direction`s in 3D
+  idx = 1 + (nvariables(dg) * nnodes(dg) * nnodes(dg)) * (direction-1 + 6 * (element_id-1))
+  p = pointer(u, idx)
+  unsafe_wrap(Array, p, (nvariables(dg), nnodes(dg), nnodes(dg)))
+end
+
+
 # Count the number of interfaces that need to be created
 function count_required_interfaces(mesh::TreeMesh{3}, cell_ids)
   count = 0
@@ -2229,6 +2250,7 @@ using the reverse mortar operators of `dg` and `fstar_tmp1` as temporary storage
 
   multiply_dimensionwise!(
     view(surface_flux_values, :, :, :, direction, large_element_id),
+    # unsafe_surface_variables(surface_flux_values, dg, direction, large_element_id),
     dg.l2mortar_reverse_lower, dg.l2mortar_reverse_upper, fstar_upper_left, fstar_tmp1)
   add_multiply_dimensionwise!(
     view(surface_flux_values, :, :, :, direction, large_element_id),
