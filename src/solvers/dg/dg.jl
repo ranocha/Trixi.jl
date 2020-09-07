@@ -47,6 +47,20 @@ end
   return nothing
 end
 
+
+# Convert a given CartesianIndex or index tuple into a linear index
+# from https://discourse.julialang.org/t/psa-replacement-of-ind2sub-sub2ind-in-julia-0-7/14666
+# It's inverse can be found below for completeness.
+# @inline function cartesian2linear(u, idx...)
+#   s2i = LinearIndices(u)
+#   s2i[idx...]
+# end
+# @inline function linear2cartesian(u, idx)
+#   i2s = CartesianIndices(u)
+#   i2s[idx]
+# end
+
+
 # Include utilities
 include("interpolation.jl")
 include("l2projection.jl")

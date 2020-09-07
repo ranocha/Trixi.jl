@@ -201,8 +201,10 @@ function Dg3D(equation::AbstractEquation{NDIMS, NVARS}, surface_flux_function, v
       inverse_vandermonde_legendre, SMatrix{POLYDEG+1,2}(lhat),
       volume_integral_type,
       SMatrix{POLYDEG+1,POLYDEG+1}(dhat), SMatrix{POLYDEG+1,POLYDEG+1}(dsplit), SMatrix{POLYDEG+1,POLYDEG+1}(dsplit_transposed),
-      SMatrix{POLYDEG+1,POLYDEG+1}(mortar_forward_upper), SMatrix{POLYDEG+1,POLYDEG+1}(mortar_forward_lower),
-      SMatrix{POLYDEG+1,POLYDEG+1}(l2mortar_reverse_upper), SMatrix{POLYDEG+1,POLYDEG+1}(l2mortar_reverse_lower),
+      # SMatrix{POLYDEG+1,POLYDEG+1}(mortar_forward_upper), SMatrix{POLYDEG+1,POLYDEG+1}(mortar_forward_lower),
+      # SMatrix{POLYDEG+1,POLYDEG+1}(l2mortar_reverse_upper), SMatrix{POLYDEG+1,POLYDEG+1}(l2mortar_reverse_lower),
+      mortar_forward_upper, mortar_forward_lower,
+      l2mortar_reverse_upper, l2mortar_reverse_lower,
       SVector{NAna+1}(analysis_nodes), SVector{NAna+1}(analysis_weights), SVector{NAna+1}(analysis_weights_volume),
       analysis_vandermonde, analysis_total_volume,
       analysis_quantities, save_analysis, analysis_filename,
@@ -1783,14 +1785,20 @@ function prolong2mortars!(dg::Dg3D, mortar_type::Val{:l2}, thread_cache)
         # L2 mortars in x-direction
         u_large = view(dg.elements.u, :, nnodes(dg), :, :, large_element_id)
         element_solutions_to_mortars!(dg, mortar_type, leftright, m, u_large, fstar_tmp1)
+        # element_solutions_to_mortars!(dg, mortar_type, leftright, m,
+        #                               view(dg.elements.u, :, nnodes(dg), :, :, large_element_id), fstar_tmp1)
       elseif dg.l2mortars.orientations[m] == 2
         # L2 mortars in y-direction
         u_large = view(dg.elements.u, :, :, nnodes(dg), :, large_element_id)
         element_solutions_to_mortars!(dg, mortar_type, leftright, m, u_large, fstar_tmp1)
+        # element_solutions_to_mortars!(dg, mortar_type, leftright, m,
+        #                               view(dg.elements.u, :, :, nnodes(dg), :, large_element_id), fstar_tmp1)
       else # dg.l2mortars.orientations[m] == 3
         # L2 mortars in z-direction
         u_large = view(dg.elements.u, :, :, :, nnodes(dg), large_element_id)
         element_solutions_to_mortars!(dg, mortar_type, leftright, m, u_large, fstar_tmp1)
+        # element_solutions_to_mortars!(dg, mortar_type, leftright, m,
+        #                               view(dg.elements.u, :, :, :, nnodes(dg), large_element_id), fstar_tmp1)
       end
     else # large_sides[m] == 2 -> large element on right side
       leftright = 2
@@ -1798,14 +1806,20 @@ function prolong2mortars!(dg::Dg3D, mortar_type::Val{:l2}, thread_cache)
         # L2 mortars in x-direction
         u_large = view(dg.elements.u, :, 1, :, :, large_element_id)
         element_solutions_to_mortars!(dg, mortar_type, leftright, m, u_large, fstar_tmp1)
+        # element_solutions_to_mortars!(dg, mortar_type, leftright, m,
+        #                               view(dg.elements.u, :, 1, :, :, large_element_id), fstar_tmp1)
       elseif dg.l2mortars.orientations[m] == 2
         # L2 mortars in y-direction
         u_large = view(dg.elements.u, :, :, 1, :, large_element_id)
         element_solutions_to_mortars!(dg, mortar_type, leftright, m, u_large, fstar_tmp1)
+        # element_solutions_to_mortars!(dg, mortar_type, leftright, m,
+        #                               view(dg.elements.u, :, :, 1, :, large_element_id), fstar_tmp1)
       else # dg.l2mortars.orientations[m] == 3
         # L2 mortars in z-direction
         u_large = view(dg.elements.u, :, :, :, 1, large_element_id)
         element_solutions_to_mortars!(dg, mortar_type, leftright, m, u_large, fstar_tmp1)
+        # element_solutions_to_mortars!(dg, mortar_type, leftright, m,
+        #                               view(dg.elements.u, :, :, :, 1, large_element_id), fstar_tmp1)
       end
     end
   end
@@ -1818,11 +1832,33 @@ Interpolate `u_large` to `dg.l2mortars.u_[upper/lower]_[left/right]` for mortar 
 using the forward mortar operators of `dg` and `fstar_tmp1` as temporary storage.
 """
 @inline function element_solutions_to_mortars!(dg::Dg3D, ::Val{:l2}, leftright, m, u_large, fstar_tmp1)
-  multiply_dimensionwise!(view(dg.l2mortars.u_upper_left,  leftright, :, :, :, m), dg.mortar_forward_lower, dg.mortar_forward_upper, u_large, fstar_tmp1)
-  multiply_dimensionwise!(view(dg.l2mortars.u_upper_right, leftright, :, :, :, m), dg.mortar_forward_upper, dg.mortar_forward_upper, u_large, fstar_tmp1)
-  multiply_dimensionwise!(view(dg.l2mortars.u_lower_left,  leftright, :, :, :, m), dg.mortar_forward_lower, dg.mortar_forward_lower, u_large, fstar_tmp1)
-  multiply_dimensionwise!(view(dg.l2mortars.u_lower_right, leftright, :, :, :, m), dg.mortar_forward_upper, dg.mortar_forward_lower, u_large, fstar_tmp1)
+  # multiply_dimensionwise!(view(dg.l2mortars.u_upper_left,  leftright, :, :, :, m), dg.mortar_forward_lower, dg.mortar_forward_upper, u_large, fstar_tmp1)
+  # multiply_dimensionwise!(view(dg.l2mortars.u_upper_right, leftright, :, :, :, m), dg.mortar_forward_upper, dg.mortar_forward_upper, u_large, fstar_tmp1)
+  # multiply_dimensionwise!(view(dg.l2mortars.u_lower_left,  leftright, :, :, :, m), dg.mortar_forward_lower, dg.mortar_forward_lower, u_large, fstar_tmp1)
+  # multiply_dimensionwise!(view(dg.l2mortars.u_lower_right, leftright, :, :, :, m), dg.mortar_forward_upper, dg.mortar_forward_lower, u_large, fstar_tmp1)
+  multiply_dimensionwise!(small_mortar_pointer(dg.l2mortars.u_upper_left,  dg, leftright, m), dg.mortar_forward_lower, dg.mortar_forward_upper, u_large, fstar_tmp1)
+  multiply_dimensionwise!(small_mortar_pointer(dg.l2mortars.u_upper_right, dg, leftright, m), dg.mortar_forward_upper, dg.mortar_forward_upper, u_large, fstar_tmp1)
+  multiply_dimensionwise!(small_mortar_pointer(dg.l2mortars.u_lower_left,  dg, leftright, m), dg.mortar_forward_lower, dg.mortar_forward_lower, u_large, fstar_tmp1)
+  multiply_dimensionwise!(small_mortar_pointer(dg.l2mortars.u_lower_right, dg, leftright, m), dg.mortar_forward_upper, dg.mortar_forward_lower, u_large, fstar_tmp1)
   return nothing
+end
+
+# workaround for https://discourse.julialang.org/t/tullio-loopvectorization-pointer-becomes-slow-for-views-because-of-base-memory-offset-for-ndims-5/46178
+function small_mortar_pointer(u::Array{<:Any, 5}, dg::Dg3D, leftright::Integer, m::Integer)
+  @boundscheck begin
+    @assert size(u, 1) == 2 && 1 <= leftright <= 2 && 1 <= m <= size(u, 5)
+  end
+
+  # The calculation of idx below is equivalent to
+  # idx = cartesian2linear(u, leftright, 1, 1, 1, m)
+  # but faster, since sizes are known at compile time.
+  idx = 1 + 2 * (leftright-1 + nvariables(dg) * nnodes(dg) * (m-1))
+  p = pointer(u, idx)
+  stride1 = Base.elsize(u) * 2 # 2 options for leftright
+  stride2 = stride1 * nvariables(dg)
+  stride3 = stride2 * nnodes(dg)
+  # strides = LoopVectorization.staticmul(eltype(u), (2, nvariables(dg), nnodes(dg)))
+  LoopVectorization.SparseStridedPointer(p, (stride1, stride2, stride3))
 end
 
 
