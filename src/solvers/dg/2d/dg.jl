@@ -1354,7 +1354,7 @@ end
 function calc_volume_integral!(u_t, ::Val{:weak_form}, dg::Dg2D)
   @unpack dhat = dg
 
-  Threads.@threads for element_id in 1:dg.n_elements
+  #=Threads.@threads=# for element_id in 1:dg.n_elements
     # Calculate volume integral
     for j in 1:nnodes(dg)
       for i in 1:nnodes(dg)
@@ -1384,7 +1384,7 @@ end
 
 
 function calc_volume_integral!(u_t, ::Val{:split_form}, nonconservative_terms, cache, dg::Dg2D)
-  Threads.@threads for element_id in 1:dg.n_elements
+  #=Threads.@threads=# for element_id in 1:dg.n_elements
     split_form_kernel!(u_t, element_id, nonconservative_terms, cache, dg)
   end
 end
@@ -1500,12 +1500,12 @@ function calc_volume_integral!(u_t, ::Val{:shock_capturing}, alpha, alpha_tmp,
   pure_and_blended_element_ids!(element_ids_dg, element_ids_dgfv, alpha, dg)
 
   # Loop over pure DG elements
-  @timeit timer() "pure DG" Threads.@threads for element_id in element_ids_dg
+  @timeit timer() "pure DG" #=Threads.@threads=# for element_id in element_ids_dg
     split_form_kernel!(u_t, element_id, have_nonconservative_terms(equations(dg)), thread_cache, dg)
   end
 
   # Loop over blended DG-FV elements
-  @timeit timer() "blended DG-FV" Threads.@threads for element_id in element_ids_dgfv
+  @timeit timer() "blended DG-FV" #=Threads.@threads=# for element_id in element_ids_dgfv
     # Calculate DG volume integral contribution
     split_form_kernel!(u_t, element_id, have_nonconservative_terms(equations(dg)), thread_cache, dg, 1 - alpha[element_id])
 
@@ -1572,7 +1572,7 @@ end
 function prolong2interfaces!(dg::Dg2D)
   equation = equations(dg)
 
-  Threads.@threads for s in 1:dg.n_interfaces
+  #=Threads.@threads=# for s in 1:dg.n_interfaces
     left_element_id = dg.interfaces.neighbor_ids[1, s]
     right_element_id = dg.interfaces.neighbor_ids[2, s]
     if dg.interfaces.orientations[s] == 1
@@ -1628,7 +1628,7 @@ prolong2mortars!(dg::Dg2D) = prolong2mortars!(dg, dg.mortar_type)
 
 # Prolong solution to mortars (l2mortar version)
 function prolong2mortars!(dg::Dg2D, mortar_type::Val{:l2})
-  Threads.@threads for m in 1:dg.n_l2mortars
+  #=Threads.@threads=# for m in 1:dg.n_l2mortars
 
     large_element_id = dg.l2mortars.neighbor_ids[3, m]
     upper_element_id = dg.l2mortars.neighbor_ids[2, m]
@@ -1717,7 +1717,7 @@ end
 function prolong2mortars!(dg::Dg2D, ::Val{:ec})
   equation = equations(dg)
 
-  Threads.@threads for m in 1:dg.n_ecmortars
+  #=Threads.@threads=# for m in 1:dg.n_ecmortars
     large_element_id = dg.ecmortars.neighbor_ids[3, m]
     upper_element_id = dg.ecmortars.neighbor_ids[2, m]
     lower_element_id = dg.ecmortars.neighbor_ids[1, m]
@@ -1836,7 +1836,7 @@ function calc_interface_flux!(surface_flux_values, nonconservative_terms::Val{fa
   @unpack surface_flux_function = dg
   @unpack u, neighbor_ids, orientations = dg.interfaces
 
-  Threads.@threads for s in 1:dg.n_interfaces
+  #=Threads.@threads=# for s in 1:dg.n_interfaces
     # Get neighboring elements
     left_id  = neighbor_ids[1, s]
     right_id = neighbor_ids[2, s]
@@ -1874,7 +1874,7 @@ function calc_interface_flux!(surface_flux_values, neighbor_ids,
   noncons_diamond_primary_threaded   = thread_cache.noncons_diamond_upper_threaded
   noncons_diamond_secondary_threaded = thread_cache.noncons_diamond_lower_threaded
 
-  Threads.@threads for s in 1:dg.n_interfaces
+  #=Threads.@threads=# for s in 1:dg.n_interfaces
     # Choose thread-specific pre-allocated container
     fstar                     = fstar_threaded[Threads.threadid()]
     noncons_diamond_primary   = noncons_diamond_primary_threaded[Threads.threadid()]
@@ -1948,7 +1948,7 @@ function calc_boundary_flux_by_direction!(surface_flux_values, dg::Dg2D, time, b
   @unpack surface_flux_function = dg
   @unpack u, neighbor_ids, neighbor_sides, node_coordinates, orientations = dg.boundaries
 
-  Threads.@threads for b in first_boundary_id:last_boundary_id
+  #=Threads.@threads=# for b in first_boundary_id:last_boundary_id
     # Get neighboring element
     neighbor_id = neighbor_ids[b]
 
@@ -1986,7 +1986,7 @@ function calc_mortar_flux!(surface_flux_values, dg::Dg2D, mortar_type::Val{:l2},
   @unpack neighbor_ids, u_lower, u_upper, orientations = mortars
   @unpack fstar_upper_threaded, fstar_lower_threaded = cache
 
-  Threads.@threads for m in 1:dg.n_l2mortars
+  #=Threads.@threads=# for m in 1:dg.n_l2mortars
     # Choose thread-specific pre-allocated container
     fstar_upper = fstar_upper_threaded[Threads.threadid()]
     fstar_lower = fstar_lower_threaded[Threads.threadid()]
@@ -2006,7 +2006,7 @@ function calc_mortar_flux!(surface_flux_values, dg::Dg2D, mortar_type::Val{:l2},
   @unpack fstar_upper_threaded, fstar_lower_threaded,
           noncons_diamond_upper_threaded, noncons_diamond_lower_threaded = thread_cache
 
-  Threads.@threads for m in 1:dg.n_l2mortars
+  #=Threads.@threads=# for m in 1:dg.n_l2mortars
     # Choose thread-specific pre-allocated container
     fstar_upper = fstar_upper_threaded[Threads.threadid()]
     fstar_lower = fstar_lower_threaded[Threads.threadid()]
@@ -2150,7 +2150,7 @@ function calc_mortar_flux!(surface_flux_values, dg::Dg2D, mortar_type::Val{:ec},
   PL2R_upper = dg.ecmortar_reverse_upper
   PL2R_lower = dg.ecmortar_reverse_lower
 
-  Threads.@threads for m in 1:dg.n_ecmortars
+  #=Threads.@threads=# for m in 1:dg.n_ecmortars
     large_element_id = neighbor_ids[3, m]
     upper_element_id = neighbor_ids[2, m]
     lower_element_id = neighbor_ids[1, m]
@@ -2243,7 +2243,7 @@ calc_surface_integral!(dg::Dg2D) = calc_surface_integral!(dg.elements.u_t, dg.el
 function calc_surface_integral!(u_t, surface_flux_values, dg::Dg2D)
   @unpack lhat = dg
 
-  Threads.@threads for element_id in 1:dg.n_elements
+  #=Threads.@threads=# for element_id in 1:dg.n_elements
     for l in 1:nnodes(dg)
       for v in 1:nvariables(dg)
         # surface at -x
@@ -2262,7 +2262,7 @@ end
 
 # Apply Jacobian from mapping to reference element
 function apply_jacobian!(dg::Dg2D)
-  Threads.@threads for element_id in 1:dg.n_elements
+  #=Threads.@threads=# for element_id in 1:dg.n_elements
     factor = -dg.elements.inverse_jacobian[element_id]
     for j in 1:nnodes(dg)
       for i in 1:nnodes(dg)
@@ -2281,7 +2281,7 @@ function calc_sources!(dg::Dg2D, source_terms::Nothing, t)
 end
 
 function calc_sources!(dg::Dg2D, source_terms, t)
-  Threads.@threads for element_id in 1:dg.n_elements
+  #=Threads.@threads=# for element_id in 1:dg.n_elements
     source_terms(dg.elements.u_t, dg.elements.u,
                  dg.elements.node_coordinates, element_id, t, nnodes(dg), equations(dg))
   end
@@ -2310,7 +2310,7 @@ function calc_blending_factors!(alpha, alpha_pre_smooth, u,
   threshold = 0.5 * 10^(-1.8 * (nnodes(dg))^0.25)
   parameter_s = log((1 - 0.0001)/0.0001)
 
-  Threads.@threads for element_id in 1:dg.n_elements
+  #=Threads.@threads=# for element_id in 1:dg.n_elements
     indicator  = indicator_threaded[Threads.threadid()]
     modal      = modal_threaded[Threads.threadid()]
     modal_tmp1 = modal_tmp1_threaded[Threads.threadid()]

@@ -58,7 +58,7 @@ function initialize!(cb::DiscreteCallback{Condition,Affect!}, u, t, integrator) 
   amr_callback = cb.affect!
   semi = integrator.p
 
-  @timeit_debug timer() "initial condition AMR" if amr_callback.adapt_initial_conditions
+  #=@timeit_debug timer() "initial condition AMR"=# if amr_callback.adapt_initial_conditions
     # iterate until mesh does not change anymore
     has_changed = true
     while has_changed
@@ -78,7 +78,7 @@ function (cb::DiscreteCallback{Condition,Affect!})(ode::ODEProblem) where {Condi
   amr_callback = cb.affect!
   semi = ode.p
 
-  @timeit_debug timer() "initial condition AMR" if amr_callback.adapt_initial_conditions
+  #=@timeit_debug timer() "initial condition AMR"=# if amr_callback.adapt_initial_conditions
     # iterate until mesh does not change anymore
     has_changed = true
     while has_changed
@@ -96,7 +96,7 @@ function (amr_callback::AMRCallback)(integrator; kwargs...)
   u_ode = integrator.u
   semi = integrator.p
 
-  @timeit_debug timer() "AMR" begin
+  #=@timeit_debug timer() "AMR"=# begin
     has_changed = amr_callback(u_ode, semi; kwargs...)
     if has_changed
       resize!(integrator, length(u_ode))

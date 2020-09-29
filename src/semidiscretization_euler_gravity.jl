@@ -230,7 +230,7 @@ function timestep_gravity_3Sstar!(cache, u_euler, t, dt, gravity_parameters, sem
     gamma3_stage  = gamma3[stage]
     beta_stage_dt = beta[stage] * dt
     @timeit_debug timer() "Runge-Kutta step" begin
-      Threads.@threads for idx in eachindex(u_ode)
+      #=Threads.@threads=# for idx in eachindex(u_ode)
         u_tmp1_ode[idx] += delta_stage * u_ode[idx]
         u_ode[idx]       = (gamma1_stage * u_ode[idx] +
                             gamma2_stage * u_tmp1_ode[idx] +

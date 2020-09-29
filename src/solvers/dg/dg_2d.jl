@@ -86,6 +86,11 @@ function wrap_array(u_ode::AbstractVector, mesh::TreeMesh{2}, equations, dg::DG,
     # TODO: Taal performance, remove assertion?
     @assert length(u_ode) == nvariables(equations) * nnodes(dg)^ndims(mesh) * nelements(dg, cache)
   end
+  # we would like to use
+  # reshape(u_ode, (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)))
+  # but that results in
+  # ERROR: LoadError: cannot resize array with shared data
+  # when we resize! `u_ode` during AMR..
   unsafe_wrap(Array{eltype(u_ode), ndims(mesh)+2}, pointer(u_ode),
               (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)))
 end
@@ -93,7 +98,7 @@ end
 
 function compute_coefficients!(u, func, t, mesh::TreeMesh{2}, equations, dg::DG, cache)
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     for j in eachnode(dg), i in eachnode(dg)
       x_node = get_node_coords(cache.elements.node_coordinates, equations, dg, i, j, element)
       u_node = func(x_node, t, equations)
@@ -109,43 +114,43 @@ function rhs!(du::AbstractArray{<:Any,4}, u, t,
               initial_conditions, boundary_conditions, source_terms,
               dg::DG, cache)
   # Reset du
-  @timeit_debug timer() "reset ∂u/∂t" du .= zero(eltype(du))
+  #=@timeit_debug timer() "reset ∂u/∂t"=# du .= zero(eltype(du))
 
   # Calculate volume integral
-  @timeit_debug timer() "volume integral" calc_volume_integral!(du, u, have_nonconservative_terms(equations), equations,
+  #=@timeit_debug timer() "volume integral"=# calc_volume_integral!(du, u, have_nonconservative_terms(equations), equations,
                                                                 dg.volume_integral, dg, cache)
 
   # Prolong solution to interfaces
   # TODO: Taal decide order of arguments, consistent vs. modified cache first?
-  @timeit_debug timer() "prolong2interfaces" prolong2interfaces!(cache, u, equations, dg)
+  #=@timeit_debug timer() "prolong2interfaces"=# prolong2interfaces!(cache, u, equations, dg)
 
   # Calculate interface fluxes
-  @timeit_debug timer() "interface flux" calc_interface_flux!(cache.elements.surface_flux_values,
+  #=@timeit_debug timer() "interface flux"=# calc_interface_flux!(cache.elements.surface_flux_values,
                                                               have_nonconservative_terms(equations), equations,
                                                               dg, cache)
 
   # Prolong solution to boundaries
-  @timeit_debug timer() "prolong2boundaries" prolong2boundaries!(cache, u, equations, dg)
+  #=@timeit_debug timer() "prolong2boundaries"=# prolong2boundaries!(cache, u, equations, dg)
 
   # Calculate boundary fluxes
-  @timeit_debug timer() "boundary flux" calc_boundary_flux!(cache, t, boundary_conditions, equations, dg)
+  #=@timeit_debug timer() "boundary flux"=# calc_boundary_flux!(cache, t, boundary_conditions, equations, dg)
 
   # Prolong solution to mortars
-  @timeit_debug timer() "prolong2mortars" prolong2mortars!(cache, u, equations, dg.mortar, dg)
+  #=@timeit_debug timer() "prolong2mortars"=# prolong2mortars!(cache, u, equations, dg.mortar, dg)
 
   # Calculate mortar fluxes
-  @timeit_debug timer() "mortar flux" calc_mortar_flux!(cache.elements.surface_flux_values,
+  #=@timeit_debug timer() "mortar flux"=# calc_mortar_flux!(cache.elements.surface_flux_values,
                                                         have_nonconservative_terms(equations), equations,
                                                         dg.mortar, dg, cache)
 
   # Calculate surface integrals
-  @timeit_debug timer() "surface integral" calc_surface_integral!(du, equations, dg, cache)
+  #=@timeit_debug timer() "surface integral"=# calc_surface_integral!(du, equations, dg, cache)
 
   # Apply Jacobian from mapping to reference element
-  @timeit_debug timer() "Jacobian" apply_jacobian!(du, equations, dg, cache)
+  #=@timeit_debug timer() "Jacobian"=# apply_jacobian!(du, equations, dg, cache)
 
   # Calculate source terms
-  @timeit_debug timer() "source terms" calc_sources!(du, u, t, source_terms, equations, dg, cache)
+  #=@timeit_debug timer() "source terms"=# calc_sources!(du, u, t, source_terms, equations, dg, cache)
 
   return nothing
 end
@@ -157,7 +162,7 @@ function calc_volume_integral!(du::AbstractArray{<:Any,4}, u,
                                dg::DGSEM, cache)
   @unpack derivative_neg_adjoint = dg.basis
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     for j in eachnode(dg), i in eachnode(dg)
       u_node = get_node_vars(u, equations, dg, i, j, element)
 
@@ -183,7 +188,7 @@ function calc_volume_integral!(du::AbstractArray{<:Any,4}, u,
                                nonconservative_terms, equations,
                                volume_integral::VolumeIntegralFluxDifferencing,
                                dg::DGSEM, cache)
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     split_form_kernel!(du, u, nonconservative_terms, equations, volume_integral.volume_flux, dg, cache, element)
   end
 end
@@ -272,7 +277,7 @@ function (indicator_hg::IndicatorHennemannGassner)(u::AbstractArray{<:Any,4}, eq
   threshold = 0.5 * 10^(-1.8 * (nnodes(dg))^0.25)
   parameter_s = log((1 - 0.0001)/0.0001)
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     indicator  = indicator_threaded[Threads.threadid()]
     modal      = modal_threaded[Threads.threadid()]
     modal_tmp1 = modal_tmp1_threaded[Threads.threadid()]
@@ -362,18 +367,18 @@ function calc_volume_integral!(du::AbstractArray{<:Any,4}, u, nonconservative_te
   @unpack volume_flux_dg, volume_flux_fv, indicator = volume_integral
 
   # Calculate blending factors α: u = u_DG * (1 - α) + u_FV * α
-  alpha = @timeit_debug timer() "blending factors" indicator(u, equations, dg, cache)
+  alpha = #=@timeit_debug timer() "blending factors"=# indicator(u, equations, dg, cache)
 
   # Determine element ids for DG-only and blended DG-FV volume integral
   pure_and_blended_element_ids!(element_ids_dg, element_ids_dgfv, alpha, dg, cache)
 
   # Loop over pure DG elements
-  @timeit_debug timer() "pure DG" Threads.@threads for element in element_ids_dg
+  #=@timeit_debug timer() "pure DG"=# #=Threads.@threads=# for element in element_ids_dg
     split_form_kernel!(du, u, nonconservative_terms, equations, volume_flux_dg, dg, cache, element)
   end
 
   # Loop over blended DG-FV elements
-  @timeit_debug timer() "blended DG-FV" Threads.@threads for element in element_ids_dgfv
+  #=@timeit_debug timer() "blended DG-FV"=# #=Threads.@threads=# for element in element_ids_dgfv
     alpha_element = alpha[element]
 
     # Calculate DG volume integral contribution
@@ -464,7 +469,7 @@ function prolong2interfaces!(cache, u::AbstractArray{<:Any,4}, equations, dg::DG
   @unpack interfaces = cache
   @unpack orientations = interfaces
 
-  Threads.@threads for interface in eachinterface(dg, cache)
+  #=Threads.@threads=# for interface in eachinterface(dg, cache)
     left_element  = interfaces.neighbor_ids[1, interface]
     right_element = interfaces.neighbor_ids[2, interface]
 
@@ -492,7 +497,7 @@ function calc_interface_flux!(surface_flux_values::AbstractArray{<:Any,4},
   @unpack surface_flux = dg
   @unpack u, neighbor_ids, orientations = cache.interfaces
 
-  Threads.@threads for interface in eachinterface(dg, cache)
+  #=Threads.@threads=# for interface in eachinterface(dg, cache)
     # Get neighboring elements
     left_id  = neighbor_ids[1, interface]
     right_id = neighbor_ids[2, interface]
@@ -528,7 +533,7 @@ function prolong2boundaries!(cache, u::AbstractArray{<:Any,4}, equations, dg::DG
   @unpack boundaries = cache
   @unpack orientations, neighbor_sides = boundaries
 
-  Threads.@threads for boundary in eachboundary(dg, cache)
+  #=Threads.@threads=# for boundary in eachboundary(dg, cache)
     element = boundaries.neighbor_ids[boundary]
 
     if orientations[b] == 1
@@ -570,7 +575,7 @@ end
 
 function prolong2mortars!(cache, u::AbstractArray{<:Any,4}, equations, mortar_l2::LobattoLegendreMortarL2, dg::DGSEM)
 
-  Threads.@threads for mortar in eachmortar(dg, cache)
+  #=Threads.@threads=# for mortar in eachmortar(dg, cache)
 
     large_element = cache.mortars.neighbor_ids[3, mortar]
     upper_element = cache.mortars.neighbor_ids[2, mortar]
@@ -657,7 +662,7 @@ function calc_mortar_flux!(surface_flux_values, nonconservative_terms::Val{false
   @unpack neighbor_ids, u_lower, u_upper, orientations = cache.mortars
   @unpack fstar_upper_threaded, fstar_lower_threaded = cache
 
-  Threads.@threads for mortar in eachmortar(dg, cache)
+  #=Threads.@threads=# for mortar in eachmortar(dg, cache)
     # Choose thread-specific pre-allocated container
     fstar_upper = fstar_upper_threaded[Threads.threadid()]
     fstar_lower = fstar_lower_threaded[Threads.threadid()]
@@ -759,7 +764,7 @@ function calc_surface_integral!(du::AbstractArray{<:Any,4}, equations, dg::DGSEM
   @unpack boundary_interpolation = dg.basis
   @unpack surface_flux_values = cache.elements
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     for l in eachnode(dg)
       for v in eachvariable(equations)
         # surface at -x
@@ -780,7 +785,7 @@ end
 
 function apply_jacobian!(du::AbstractArray{<:Any,4}, equations, dg::DG, cache)
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     factor = -cache.elements.inverse_jacobian[element]
 
     for j in eachnode(dg), i in eachnode(dg)
@@ -801,7 +806,7 @@ end
 
 function calc_sources!(du::AbstractArray{<:Any,4}, u, t, source_terms, equations, dg::DG, cache)
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     for j in eachnode(dg), i in eachnode(dg)
       u_local = get_node_vars(u, equations, dg, i, j, element)
       x_local = get_node_coords(cache.elements.node_coordinates, equations, dg, i, j, element)

@@ -37,7 +37,8 @@ function initial_conditions_gauss(x, t, equation::LinearScalarAdvectionEquation2
   # Store translated coordinate for easy use of exact solution
   x_trans = x - equation.advectionvelocity * t
 
-  return @SVector [exp(-(x_trans[1]^2 + x_trans[2]^2))]
+  # return @SVector [exp(-(x_trans[1]^2 + x_trans[2]^2))] # TODO: Taal debug
+  return @SVector [exp(-(x_trans[1]^2 + x_trans[2]^2)) + 0.1]
 end
 
 function initial_conditions_convergence_test(x, t, equation::LinearScalarAdvectionEquation2D)

@@ -28,7 +28,7 @@ solver = DGSEM(basis, surface_flux, volume_integral)
 coordinates_min = (-2, -2)
 coordinates_max = ( 2,  2)
 mesh = TreeMesh(coordinates_min, coordinates_max,
-                initial_refinement_level=6,
+                initial_refinement_level=5, # TODO: Taal debug
                 n_cells_max=10_000)
 
 
@@ -47,7 +47,11 @@ analysis_interval = 100
 alive_callback = AliveCallback(analysis_interval=analysis_interval)
 analysis_callback = AnalysisCallback(semi, analysis_interval=analysis_interval)
 
-indicator_amr = IndicatorHennemannGassner(semi,
+# indicator_amr = IndicatorMax(semi, variable=density)
+# amr_indicator = IndicatorThreeLevel(semi, indicator_amr,
+#                                     base_level=4,
+#                                     max_level=6, max_threshold=0.5)
+indicator_amr = IndicatorHennemannGassner(semi, # TODO: Taal debug
                                           alpha_max=0.5,
                                           alpha_min=0.001,
                                           alpha_smooth=true,
@@ -56,9 +60,10 @@ amr_indicator = IndicatorThreeLevel(semi, indicator_amr,
                                     base_level=4,
                                     max_level=6, max_threshold=0.1)
 amr_callback = AMRCallback(semi, amr_indicator,
-                           interval=1, # TODO: Taal debug interval=5
-                           adapt_initial_conditions=true,
-                           adapt_initial_conditions_only_refine=true)
+                           interval=5, # TODO: Taal debug
+                           adapt_initial_conditions=true, # TODO: Taal debug
+                           adapt_initial_conditions_only_refine=true) # TODO: Taal debug
+amr_callback(ode) # TODO: Taal debug
 
 stepsize_callback = StepsizeCallback(cfl=0.25) # TODO: Taal debug cfl=1.0
 
@@ -67,7 +72,8 @@ save_solution = SaveSolutionCallback(solution_interval=10, # TODO: Taal debug, 1
                                      save_final_solution=true,
                                      solution_variables=:primitive)
 
-callbacks = CallbackSet(summary_callback, amr_callback, stepsize_callback, analysis_callback, save_solution, alive_callback)
+# callbacks = CallbackSet(summary_callback, stepsize_callback, analysis_callback, save_solution, alive_callback)
+callbacks = CallbackSet(summary_callback, amr_callback, stepsize_callback, analysis_callback, save_solution, alive_callback) # TODO: Taal debug
 
 
 ###############################################################################

@@ -17,7 +17,7 @@ class 2N of Williamson.
     a_stage    = a[stage]
     b_stage_dt = b[stage] * dt
     @timeit timer() "Runge-Kutta step" begin
-      Threads.@threads for i in eachindex(solver.elements.u)
+      #=Threads.@threads=# for i in eachindex(solver.elements.u)
         solver.elements.u_tmp2[i] = solver.elements.u_t[i] - solver.elements.u_tmp2[i] * a_stage
         solver.elements.u[i] += solver.elements.u_tmp2[i] * b_stage_dt
       end
@@ -76,7 +76,7 @@ class 3Sstar of Ketcheson.
     gamma3_stage  = gamma3[stage]
     beta_stage_dt = beta[stage] * dt
     @timeit timer() "Runge-Kutta step" begin
-      Threads.@threads for i in eachindex(solver.elements.u)
+      #=Threads.@threads=# for i in eachindex(solver.elements.u)
         solver.elements.u_tmp2[i] += delta_stage * solver.elements.u[i]
         solver.elements.u[i]       = (gamma1_stage * solver.elements.u[i] +
                                       gamma2_stage * solver.elements.u_tmp2[i] +

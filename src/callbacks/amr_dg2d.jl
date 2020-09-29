@@ -22,6 +22,19 @@ function (amr_callback::AMRCallback)(u_ode::AbstractVector, mesh::TreeMesh,
     end
   end
 
+  # TODO: Taal debug
+  pointer_before__refine = pointer(u_ode)
+  length_before__refine  = length(u_ode)
+  let u = wrap_array(u_ode, mesh, equations, dg, cache)
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    if unstable_idx !== nothing
+      @info "AMR, before refine!" unstable_idx u[unstable_idx] pointer_before__refine length_before__refine
+    end
+    # unstable_idx_ode = findfirst(u -> abs(u) < 0.01, u_ode)
+    # if unstable_idx !== nothing
+    #   @info "AMR, before refine!" unstable_idx_ode u_ode[unstable_idx_ode]
+    # end
+  end
 
   @timeit timer() "refine" if !only_coarsen && !isempty(to_refine)
     # refine mesh
@@ -40,6 +53,19 @@ function (amr_callback::AMRCallback)(u_ode::AbstractVector, mesh::TreeMesh,
     refined_original_cells = Int[]
   end
 
+  # TODO: Taal debug
+  pointer_before_coarsen = pointer(u_ode)
+  length_before_coarsen  = length(u_ode)
+  let u = wrap_array(u_ode, mesh, equations, dg, cache)
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    if unstable_idx !== nothing
+      @info "AMR, before coarsen!" unstable_idx u[unstable_idx] pointer_before__refine pointer_before_coarsen length_before__refine length_before_coarsen
+    end
+    # unstable_idx_ode = findfirst(u -> abs(u) < 0.01, u_ode)
+    # if unstable_idx !== nothing
+    #   @info "AMR, before coarsen!" unstable_idx_ode u_ode[unstable_idx_ode]
+    # end
+  end
 
   @timeit timer() "coarsen" if !only_refine && !isempty(to_coarsen)
     # Since the cells may have been shifted due to refinement, first we need to
@@ -101,6 +127,32 @@ function (amr_callback::AMRCallback)(u_ode::AbstractVector, mesh::TreeMesh,
     coarsened_original_cells = Int[]
   end
 
+  # TODO: Taal debug
+  pointer_after__coarsen = pointer(u_ode)
+  length_after__coarsen  = length(u_ode)
+  let u = wrap_array(u_ode, mesh, equations, dg, cache)
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    if unstable_idx !== nothing
+      @info "AMR, after coarsen!" unstable_idx u[unstable_idx] pointer_before__refine pointer_before_coarsen pointer_after__coarsen length_before__refine length_before_coarsen length_after__coarsen isempty(to_refine) isempty(to_coarsen)
+    end
+    # unstable_idx_ode = findfirst(u -> abs(u) < 0.01, u_ode)
+    # if unstable_idx !== nothing
+    #   @info "AMR, after coarsen!" unstable_idx_ode u_ode[unstable_idx_ode]
+    # end
+  end
+
+  # TODO: Taal debug
+  let u = wrap_array(u_ode, mesh, equations, dg, cache)
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    if unstable_idx !== nothing
+      u[unstable_idx] = 1
+      unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    end
+    if unstable_idx !== nothing
+      @info "AMR, after setting" unstable_idx u[unstable_idx]
+    end
+  end
+
  # Return true if there were any cells coarsened or refined, otherwise false
  has_changed = !isempty(refined_original_cells) || !isempty(coarsened_original_cells)
  if has_changed # TODO: Taal decide, where shall we set this?
@@ -151,12 +203,19 @@ function refine!(u_ode::AbstractVector, adaptor, mesh::TreeMesh{2}, equations, d
   for old_element_id in 1:old_n_elements
     if needs_refinement[old_element_id]
       # Refine element and store solution directly in new data structure
-      refine_element!(u, element_id, old_u, old_element_id,
-                      adaptor, equations, dg)
+      # TODO: Taal debug
+      # refine_element!(u, element_id, old_u, old_element_id,
+      #                 adaptor, equations, dg)
+      for element in element_id:element_id+3, j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+        u[v, i, j, element] = old_u[v, i, j, old_element_id]
+      end
       element_id += 2^ndims(mesh)
     else
       # Copy old element data to new element container
-      @views u[:, .., element_id] .= old_u[:, .., old_element_id]
+      # @views u[:, .., element_id] .= old_u[:, .., old_element_id] # TODO: Taal debug
+      for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+        u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+      end
       element_id += 1
     end
   end
@@ -274,6 +333,35 @@ function coarsen!(u_ode::AbstractVector, adaptor, mesh::TreeMesh{2}, equations, 
   # Get new list of leaf cells
   leaf_cell_ids = leaf_cells(mesh.tree)
 
+  # TODO: Taal debug
+  pointer_before_coarsen = pointer(u_ode)
+  length_before_coarsen  = length(u_ode)
+  let u = wrap_array(u_ode, mesh, equations, dg, cache)
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    if unstable_idx !== nothing
+      @info "AMR, inside before coarsen!" unstable_idx u[unstable_idx] pointer_before_coarsen length_before_coarsen findfirst(u -> abs(u) < 0.01, old_u)
+    end
+    # unstable_idx_ode = findfirst(u -> abs(u) < 0.01, u_ode)
+    # if unstable_idx !== nothing
+    #   @info "AMR, inside before coarsen!" unstable_idx_ode u_ode[unstable_idx_ode]
+    # end
+
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u_ode)
+    if unstable_idx !== nothing
+      @info "AMR, inside before coarsen! for u_ode" unstable_idx u_ode[unstable_idx]
+    end
+
+    # unstable_idx = findfirst(u -> abs(u) < 0.01, old_u_ode)
+    # if unstable_idx !== nothing
+    #   @info "AMR, inside before coarsen! for old_u_ode" unstable_idx old_u_ode[unstable_idx]
+    # end
+
+    unstable_idx = findfirst(u -> abs(u) < 0.01, old_u)
+    if unstable_idx !== nothing
+      @info "AMR, inside before coarsen! for old_u" unstable_idx old_u[unstable_idx]
+    end
+  end
+
   # Initialize new elements container
   elements = init_elements(leaf_cell_ids, mesh,
                            real(dg), nvariables(equations), polydeg(dg))
@@ -283,6 +371,21 @@ function coarsen!(u_ode::AbstractVector, adaptor, mesh::TreeMesh{2}, equations, 
 
   resize!(u_ode, nvariables(equations) * nnodes(dg)^ndims(mesh) * nelements(dg, cache))
   u = wrap_array(u_ode, mesh, equations, dg, cache)
+
+  # TODO: Taal debug
+  pointer_medium_coarsen = pointer(u_ode)
+  length_medium_coarsen  = length(u_ode)
+  let u = wrap_array(u_ode, mesh, equations, dg, cache)
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    if unstable_idx !== nothing
+      @info "AMR, inside medium coarsen!" unstable_idx u[unstable_idx] pointer_before_coarsen pointer_medium_coarsen length_before_coarsen length_medium_coarsen findfirst(u -> abs(u) < 0.01, old_u)
+    end
+
+    unstable_idx = findfirst(u -> abs(u) < 0.01, old_u)
+    if unstable_idx !== nothing
+      @info "AMR, inside medium coarsen! for old_u" unstable_idx old_u[unstable_idx]
+    end
+  end
 
   # Loop over all elements in old container and either copy them or coarsen them
   skip = 0
@@ -301,17 +404,36 @@ function coarsen!(u_ode::AbstractVector, adaptor, mesh::TreeMesh{2}, equations, 
       @assert all(to_be_removed[old_element_id:(old_element_id+2^ndims(mesh)-1)]) "bad cell/element order"
 
       # Coarsen elements and store solution directly in new data structure
-      coarsen_elements!(u, element_id, old_u, old_element_id,
-                        adaptor, equations, dg)
+      # TODO: Taal debug
+      # coarsen_elements!(u, element_id, old_u, old_element_id,
+      #                   adaptor, equations, dg)
+      # u[:, :, :, element_id] .= 0.5
+      for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+        u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+      end
       element_id += 1
       skip = 2^ndims(mesh) - 1
     else
       # Copy old element data to new element container
-      @views u[:, .., element_id] .= old_u[:, .., old_element_id]
+      # TODO: Taal debug
+      # @views u[:, .., element_id] .= old_u[:, .., old_element_id]
+      for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+        u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+      end
       element_id += 1
     end
   end
   @assert element_id == nelements(dg, cache) + 1 "element_id = $element_id, nelements(dg, cache) = $(nelements(dg, cache))" # TODO: Taal debug
+
+  # TODO: Taal debug
+  pointer_after__coarsen = pointer(u_ode)
+  length_after__coarsen  = length(u_ode)
+  let u = wrap_array(u_ode, mesh, equations, dg, cache)
+    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+    if unstable_idx !== nothing
+      @info "AMR, inside after coarsen!" unstable_idx u[unstable_idx] pointer_before_coarsen pointer_medium_coarsen pointer_after__coarsen length_before_coarsen length_medium_coarsen length_after__coarsen findfirst(u -> abs(u) < 0.01, old_u)
+    end
+  end
 
   # TODO: Taal performance, allow initializing the stuff in place, making use of resize!
   # Initialize new interfaces container
@@ -408,7 +530,7 @@ function (indicator::IndicatorThreeLevel)(u::AbstractArray{<:Any,4},
 
   alpha = indicator.indicator(u, equations, dg, cache)
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     cell_id = cache.elements.cell_ids[element]
     current_level = mesh.tree.levels[cell_id]
 
@@ -462,7 +584,7 @@ function (löhner::IndicatorLöhner)(u::AbstractArray{<:Any,4}, equations, dg::D
   @unpack alpha, indicator_threaded = löhner.cache
   resize!(alpha, nelements(dg, cache))
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     indicator = indicator_threaded[Threads.threadid()]
 
     # Calculate indicator variables at Gauss-Lobatto nodes
@@ -525,7 +647,7 @@ function (indicator_max::IndicatorMax)(u::AbstractArray{<:Any,4}, equations, dg:
   @unpack alpha, indicator_threaded = indicator_max.cache
   resize!(alpha, nelements(dg, cache))
 
-  Threads.@threads for element in eachelement(dg, cache)
+  #=Threads.@threads=# for element in eachelement(dg, cache)
     indicator = indicator_threaded[Threads.threadid()]
 
     # Calculate indicator variables at Gauss-Lobatto nodes
