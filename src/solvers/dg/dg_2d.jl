@@ -81,16 +81,40 @@ function create_cache(mesh::TreeMesh{2}, equations, mortar_l2::LobattoLegendreMo
 end
 
 
+@inline size_strides(A::AbstractArray) = Base.tail(size_strides((1,), size(A)...))
+size_strides(out::Tuple) = out
+@inline size_strides(out, s, sz...) = size_strides((out..., out[end]*s), sz...)
 function wrap_array(u_ode::AbstractVector, mesh::TreeMesh{2}, equations, dg::DG, cache)
   @boundscheck begin
     # TODO: Taal performance, remove assertion?
     @assert length(u_ode) == nvariables(equations) * nnodes(dg)^ndims(mesh) * nelements(dg, cache)
   end
-  # we would like to use
-  # reshape(u_ode, (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)))
+  # We would like to use
+  #   reshape(u_ode, (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)))
   # but that results in
-  # ERROR: LoadError: cannot resize array with shared data
+  #   ERROR: LoadError: cannot resize array with shared data
   # when we resize! `u_ode` during AMR..
+
+  # The following choice is extremely slow but doesn't result in spurious memory errors when using AMR...
+  # Base.ReshapedArray(u_ode, (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)),
+  #                    reverse(map(Base.MultiplicativeInverses.SignedMultiplicativeInverse, Base.front(size_strides(u_ode)))))
+  # The following choice is exactly the same as above if `u_ode isa Vector`
+  # Base.ReshapedArray(u_ode, (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)), ())
+
+  # From Strided.jl
+  # The following choice is extremely slow but doesn't seem to result in spurious memory errors when using AMR...
+  # StridedView(u_ode, (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)),
+  #             (1, nvariables(equations), nvariables(equations)*nnodes(dg), nvariables(equations)*nnodes(dg)^2))
+  # The following choice is extremely slow and results in spurious memory errors when using AMR...
+  # UnsafeStridedView(pointer(u_ode), (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)),
+  #                  (1, nvariables(equations), nvariables(equations)*nnodes(dg), nvariables(equations)*nnodes(dg)^2))
+
+  # From UnsafeArrays.jl
+  # The following choice is slow and still results in stochatic (memory?) errors when using AMR...
+  # UnsafeArray(pointer(u_ode), (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)))
+
+  # This is fast but we get stochatic (memory?) errors when using AMR...
+  # FIX: Remember to `GC.@preserve` possible copies of stuff that are only used via `wrap_array` afterwards!
   unsafe_wrap(Array{eltype(u_ode), ndims(mesh)+2}, pointer(u_ode),
               (nvariables(equations), nnodes(dg), nnodes(dg), nelements(dg, cache)))
 end

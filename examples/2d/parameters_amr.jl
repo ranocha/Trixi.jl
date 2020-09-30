@@ -61,7 +61,7 @@ amr_callback = AMRCallback(semi, amr_indicator,
 stepsize_callback = StepsizeCallback(cfl=1.6)
 
 # TODO: Taal decide, first AMR or save solution etc.
-callbacks = CallbackSet(amr_callback);
+callbacks = CallbackSet(amr_callback, alive_callback);
 # callbacks = CallbackSet(summary_callback, amr_callback, stepsize_callback, analysis_callback, save_solution, alive_callback); # TODO: Taal debug
 
 

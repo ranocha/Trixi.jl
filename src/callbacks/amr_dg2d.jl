@@ -183,43 +183,45 @@ function refine!(u_ode::AbstractVector, adaptor, mesh::TreeMesh{2}, equations, d
   # Retain current solution data
   old_n_elements = nelements(dg, cache)
   old_u_ode = copy(u_ode)
-  old_u     = wrap_array(old_u_ode, mesh, equations, dg, cache)
+  GC.@preserve old_u_ode begin
+    old_u     = wrap_array(old_u_ode, mesh, equations, dg, cache)
 
-  # Get new list of leaf cells
-  leaf_cell_ids = leaf_cells(mesh.tree)
+    # Get new list of leaf cells
+    leaf_cell_ids = leaf_cells(mesh.tree)
 
-  # Initialize new elements container
-  elements = init_elements(leaf_cell_ids, mesh,
-                           real(dg), nvariables(equations), polydeg(dg))
-  copy!(cache.elements, elements)
-  @assert nelements(dg, cache) == nelements(elements) # TODO: Taal debug
-  @assert nelements(dg, cache) > old_n_elements # TODO: Taal debug
+    # Initialize new elements container
+    elements = init_elements(leaf_cell_ids, mesh,
+                            real(dg), nvariables(equations), polydeg(dg))
+    copy!(cache.elements, elements)
+    @assert nelements(dg, cache) == nelements(elements) # TODO: Taal debug
+    @assert nelements(dg, cache) > old_n_elements # TODO: Taal debug
 
-  resize!(u_ode, nvariables(equations) * nnodes(dg)^ndims(mesh) * nelements(dg, cache))
-  u = wrap_array(u_ode, mesh, equations, dg, cache)
+    resize!(u_ode, nvariables(equations) * nnodes(dg)^ndims(mesh) * nelements(dg, cache))
+    u = wrap_array(u_ode, mesh, equations, dg, cache)
 
-  # Loop over all elements in old container and either copy them or refine them
-  element_id = 1
-  for old_element_id in 1:old_n_elements
-    if needs_refinement[old_element_id]
-      # Refine element and store solution directly in new data structure
-      # TODO: Taal debug
-      # refine_element!(u, element_id, old_u, old_element_id,
-      #                 adaptor, equations, dg)
-      for element in element_id:element_id+3, j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
-        u[v, i, j, element] = old_u[v, i, j, old_element_id]
+    # Loop over all elements in old container and either copy them or refine them
+    element_id = 1
+    for old_element_id in 1:old_n_elements
+      if needs_refinement[old_element_id]
+        # Refine element and store solution directly in new data structure
+        # TODO: Taal debug
+        # refine_element!(u, element_id, old_u, old_element_id,
+        #                 adaptor, equations, dg)
+        for element in element_id:element_id+3, j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+          u[v, i, j, element] = old_u[v, i, j, old_element_id]
+        end
+        element_id += 2^ndims(mesh)
+      else
+        # Copy old element data to new element container
+        # @views u[:, .., element_id] .= old_u[:, .., old_element_id] # TODO: Taal debug
+        for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+          u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+        end
+        element_id += 1
       end
-      element_id += 2^ndims(mesh)
-    else
-      # Copy old element data to new element container
-      # @views u[:, .., element_id] .= old_u[:, .., old_element_id] # TODO: Taal debug
-      for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
-        u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
-      end
-      element_id += 1
     end
+    @assert element_id == nelements(dg, cache) + 1 || element_id == nelements(dg, cache) + 2^ndims(mesh) "element_id = $element_id, nelements(dg, cache) = $(nelements(dg, cache))" # TODO: Taal debug
   end
-  @assert element_id == nelements(dg, cache) + 1 || element_id == nelements(dg, cache) + 2^ndims(mesh) "element_id = $element_id, nelements(dg, cache) = $(nelements(dg, cache))" # TODO: Taal debug
 
   # TODO: Taal performance, allow initializing the stuff in place, making use of resize!
   # Initialize new interfaces container
@@ -328,102 +330,104 @@ function coarsen!(u_ode::AbstractVector, adaptor, mesh::TreeMesh{2}, equations, 
   # Retain current solution data
   old_n_elements = nelements(dg, cache)
   old_u_ode = copy(u_ode)
-  old_u     = wrap_array(old_u_ode, mesh, equations, dg, cache)
+  GC.@preserve old_u_ode begin
+    old_u     = wrap_array(old_u_ode, mesh, equations, dg, cache)
 
-  # Get new list of leaf cells
-  leaf_cell_ids = leaf_cells(mesh.tree)
+    # Get new list of leaf cells
+    leaf_cell_ids = leaf_cells(mesh.tree)
 
-  # TODO: Taal debug
-  pointer_before_coarsen = pointer(u_ode)
-  length_before_coarsen  = length(u_ode)
-  let u = wrap_array(u_ode, mesh, equations, dg, cache)
-    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
-    if unstable_idx !== nothing
-      @info "AMR, inside before coarsen!" unstable_idx u[unstable_idx] pointer_before_coarsen length_before_coarsen findfirst(u -> abs(u) < 0.01, old_u)
-    end
-    # unstable_idx_ode = findfirst(u -> abs(u) < 0.01, u_ode)
-    # if unstable_idx !== nothing
-    #   @info "AMR, inside before coarsen!" unstable_idx_ode u_ode[unstable_idx_ode]
-    # end
-
-    unstable_idx = findfirst(u -> abs(u) < 0.01, u_ode)
-    if unstable_idx !== nothing
-      @info "AMR, inside before coarsen! for u_ode" unstable_idx u_ode[unstable_idx]
-    end
-
-    # unstable_idx = findfirst(u -> abs(u) < 0.01, old_u_ode)
-    # if unstable_idx !== nothing
-    #   @info "AMR, inside before coarsen! for old_u_ode" unstable_idx old_u_ode[unstable_idx]
-    # end
-
-    unstable_idx = findfirst(u -> abs(u) < 0.01, old_u)
-    if unstable_idx !== nothing
-      @info "AMR, inside before coarsen! for old_u" unstable_idx old_u[unstable_idx]
-    end
-  end
-
-  # Initialize new elements container
-  elements = init_elements(leaf_cell_ids, mesh,
-                           real(dg), nvariables(equations), polydeg(dg))
-  copy!(cache.elements, elements)
-  @assert nelements(dg, cache) == nelements(elements) # TODO: Taal debug
-  @assert nelements(dg, cache) < old_n_elements # TODO: Taal debug
-
-  resize!(u_ode, nvariables(equations) * nnodes(dg)^ndims(mesh) * nelements(dg, cache))
-  u = wrap_array(u_ode, mesh, equations, dg, cache)
-
-  # TODO: Taal debug
-  pointer_medium_coarsen = pointer(u_ode)
-  length_medium_coarsen  = length(u_ode)
-  let u = wrap_array(u_ode, mesh, equations, dg, cache)
-    unstable_idx = findfirst(u -> abs(u) < 0.01, u)
-    if unstable_idx !== nothing
-      @info "AMR, inside medium coarsen!" unstable_idx u[unstable_idx] pointer_before_coarsen pointer_medium_coarsen length_before_coarsen length_medium_coarsen findfirst(u -> abs(u) < 0.01, old_u)
-    end
-
-    unstable_idx = findfirst(u -> abs(u) < 0.01, old_u)
-    if unstable_idx !== nothing
-      @info "AMR, inside medium coarsen! for old_u" unstable_idx old_u[unstable_idx]
-    end
-  end
-
-  # Loop over all elements in old container and either copy them or coarsen them
-  skip = 0
-  element_id = 1
-  for old_element_id in 1:old_n_elements
-    # If skip is non-zero, we just coarsened 2^ndims elements and need to omit the following elements
-    if skip > 0
-      skip -= 1
-      continue
-    end
-
-    if to_be_removed[old_element_id]
-      # If an element is to be removed, sanity check if the following elements
-      # are also marked - otherwise there would be an error in the way the
-      # cells/elements are sorted
-      @assert all(to_be_removed[old_element_id:(old_element_id+2^ndims(mesh)-1)]) "bad cell/element order"
-
-      # Coarsen elements and store solution directly in new data structure
-      # TODO: Taal debug
-      # coarsen_elements!(u, element_id, old_u, old_element_id,
-      #                   adaptor, equations, dg)
-      # u[:, :, :, element_id] .= 0.5
-      for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
-        u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+    # TODO: Taal debug
+    pointer_before_coarsen = pointer(u_ode)
+    length_before_coarsen  = length(u_ode)
+    let u = wrap_array(u_ode, mesh, equations, dg, cache)
+      unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+      if unstable_idx !== nothing
+        @info "AMR, inside before coarsen!" unstable_idx u[unstable_idx] pointer_before_coarsen length_before_coarsen findfirst(u -> abs(u) < 0.01, old_u)
       end
-      element_id += 1
-      skip = 2^ndims(mesh) - 1
-    else
-      # Copy old element data to new element container
-      # TODO: Taal debug
-      # @views u[:, .., element_id] .= old_u[:, .., old_element_id]
-      for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
-        u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+      # unstable_idx_ode = findfirst(u -> abs(u) < 0.01, u_ode)
+      # if unstable_idx !== nothing
+      #   @info "AMR, inside before coarsen!" unstable_idx_ode u_ode[unstable_idx_ode]
+      # end
+
+      unstable_idx = findfirst(u -> abs(u) < 0.01, u_ode)
+      if unstable_idx !== nothing
+        @info "AMR, inside before coarsen! for u_ode" unstable_idx u_ode[unstable_idx]
       end
-      element_id += 1
+
+      # unstable_idx = findfirst(u -> abs(u) < 0.01, old_u_ode)
+      # if unstable_idx !== nothing
+      #   @info "AMR, inside before coarsen! for old_u_ode" unstable_idx old_u_ode[unstable_idx]
+      # end
+
+      unstable_idx = findfirst(u -> abs(u) < 0.01, old_u)
+      if unstable_idx !== nothing
+        @info "AMR, inside before coarsen! for old_u" unstable_idx old_u[unstable_idx]
+      end
     end
+
+    # Initialize new elements container
+    elements = init_elements(leaf_cell_ids, mesh,
+                            real(dg), nvariables(equations), polydeg(dg))
+    copy!(cache.elements, elements)
+    @assert nelements(dg, cache) == nelements(elements) # TODO: Taal debug
+    @assert nelements(dg, cache) < old_n_elements # TODO: Taal debug
+
+    resize!(u_ode, nvariables(equations) * nnodes(dg)^ndims(mesh) * nelements(dg, cache))
+    u = wrap_array(u_ode, mesh, equations, dg, cache)
+
+    # TODO: Taal debug
+    pointer_medium_coarsen = pointer(u_ode)
+    length_medium_coarsen  = length(u_ode)
+    let u = wrap_array(u_ode, mesh, equations, dg, cache)
+      unstable_idx = findfirst(u -> abs(u) < 0.01, u)
+      if unstable_idx !== nothing
+        @info "AMR, inside medium coarsen!" unstable_idx u[unstable_idx] pointer_before_coarsen pointer_medium_coarsen length_before_coarsen length_medium_coarsen findfirst(u -> abs(u) < 0.01, old_u)
+      end
+
+      unstable_idx = findfirst(u -> abs(u) < 0.01, old_u)
+      if unstable_idx !== nothing
+        @info "AMR, inside medium coarsen! for old_u" unstable_idx old_u[unstable_idx]
+      end
+    end
+
+    # Loop over all elements in old container and either copy them or coarsen them
+    skip = 0
+    element_id = 1
+    for old_element_id in 1:old_n_elements
+      # If skip is non-zero, we just coarsened 2^ndims elements and need to omit the following elements
+      if skip > 0
+        skip -= 1
+        continue
+      end
+
+      if to_be_removed[old_element_id]
+        # If an element is to be removed, sanity check if the following elements
+        # are also marked - otherwise there would be an error in the way the
+        # cells/elements are sorted
+        @assert all(to_be_removed[old_element_id:(old_element_id+2^ndims(mesh)-1)]) "bad cell/element order"
+
+        # Coarsen elements and store solution directly in new data structure
+        # TODO: Taal debug
+        # coarsen_elements!(u, element_id, old_u, old_element_id,
+        #                   adaptor, equations, dg)
+        # u[:, :, :, element_id] .= 0.5
+        for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+          u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+        end
+        element_id += 1
+        skip = 2^ndims(mesh) - 1
+      else
+        # Copy old element data to new element container
+        # TODO: Taal debug
+        # @views u[:, .., element_id] .= old_u[:, .., old_element_id]
+        for j in eachnode(dg), i in eachnode(dg), v in eachvariable(equations)
+          u[v, i, j, element_id] = old_u[v, i, j, old_element_id]
+        end
+        element_id += 1
+      end
+    end
+    @assert element_id == nelements(dg, cache) + 1 "element_id = $element_id, nelements(dg, cache) = $(nelements(dg, cache))" # TODO: Taal debug
   end
-  @assert element_id == nelements(dg, cache) + 1 "element_id = $element_id, nelements(dg, cache) = $(nelements(dg, cache))" # TODO: Taal debug
 
   # TODO: Taal debug
   pointer_after__coarsen = pointer(u_ode)
