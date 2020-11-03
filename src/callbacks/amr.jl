@@ -484,7 +484,8 @@ function (controller::ControllerThreeLevelCombined)(u::AbstractArray{<:Any},
       target_level = controller.base_level
     end
 
-    if alpha_secondary[element] >= controller.max_threshold_secondary
+    # if alpha_secondary[element] >= controller.max_threshold_secondary
+    if isapprox(controller.max_threshold_secondary, alpha_secondary[element], atol=1e-8)
       target_level = controller.max_level
     end
 

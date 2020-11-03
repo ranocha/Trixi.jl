@@ -430,7 +430,7 @@ function calc_amr_indicator(dg::Dg2D, mesh::TreeMesh, time)
         target_level = base_level
       end
       # make sure that a highly troubled shock cell is not coarsened
-      if isapprox.(dg.shock_alpha_max, alpha1[element_id], atol=1e-12)
+      if isapprox.(dg.shock_alpha_max, alpha1[element_id], atol=1e-8)
         target_level = max_level
       end
       # Compare target level with actual level to set indicator

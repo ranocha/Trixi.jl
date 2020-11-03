@@ -15,7 +15,7 @@ basis = LobattoLegendreBasis(4)
 
 indicator_sc = IndicatorHennemannGassner(equations, basis,
                                          alpha_max=0.4,
-                                         alpha_min=0.0001,
+                                         alpha_min=0.0, # 0.0001,
                                          alpha_smooth=true,
                                          variable=pressure)
 
@@ -58,6 +58,7 @@ amr_callback = AMRCallback(semi, amr_controller,
                            adapt_initial_condition=true,
                            adapt_initial_condition_only_refine=true)
 
+# FIXME Taal restore after Taam sync to something else?
 stepsize_callback = StepsizeCallback(cfl=0.3)
 
 save_solution = SaveSolutionCallback(interval=100,
@@ -69,14 +70,22 @@ analysis_interval = 100
 alive_callback = AliveCallback(analysis_interval=analysis_interval)
 analysis_callback = AnalysisCallback(semi, interval=analysis_interval)
 
-callbacks = CallbackSet(summary_callback, amr_callback, stepsize_callback,
+# callbacks = CallbackSet(summary_callback, amr_callback, stepsize_callback,
+#                         save_solution,
+#                         analysis_callback, alive_callback)
+callbacks = CallbackSet(summary_callback,
                         save_solution,
-                        analysis_callback, alive_callback)
+                        analysis_callback,
+                        # amr_callback,
+                        stepsize_callback,
+                        alive_callback)
 
 
 ###############################################################################
 # run the simulation
 
-sol = solve(ode, CarpenterKennedy2N54(williamson_condition=false), dt=1.0, # solve needs some value here but it will be overwritten by the stepsize_callback
+# sol = Trixi.solve(ode, Trixi.SimpleAlgorithm2N45(),
+sol = solve(ode, CarpenterKennedy2N54(williamson_condition=false),
+            dt=1.0, # solve needs some value here but it will be overwritten by the stepsize_callback
             save_everystep=false, callback=callbacks);
 summary_callback() # print the timer summary

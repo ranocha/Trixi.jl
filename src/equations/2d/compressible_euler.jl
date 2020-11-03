@@ -263,7 +263,7 @@ function initial_condition_blob(x, t, equation::CompressibleEulerEquations2D)
   # use perfect gas assumption to compute background pressure via the sound speed c^2 = gamma * pressure/density
   p0 = c*c*dens0/equation.gamma
   # initial center of the blob
-  inicenter = [-15,0]
+  inicenter = SVector(-15, 0)
   x_rel = x-inicenter
   r = sqrt(x_rel[1]^2 + x_rel[2]^2)
   # steepness of the tanh transition zone
