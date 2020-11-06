@@ -27,7 +27,8 @@ using HDF5: h5open, attrs
 using LinearMaps: LinearMap
 import MPI
 using OffsetArrays: OffsetArray, OffsetVector
-using StaticArrays: @MVector, @SVector, MVector, MMatrix, MArray, SVector, SMatrix, SArray
+using StaticArrays # necessary for _precompile_()
+# using StaticArrays: @MVector, @SVector, MVector, MMatrix, MArray, SVector, SMatrix, SArray
 using TimerOutputs: @notimeit, @timeit, @timeit_debug, TimerOutput, print_timer, reset_timer!
 using UnPack: @unpack
 
@@ -138,4 +139,7 @@ function __init__()
 end
 
 
-end
+# include("../dev/precompile/precompile_Trixi.jl")
+# _precompile_()
+
+end # module

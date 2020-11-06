@@ -102,7 +102,7 @@ function Dg2D(equation::AbstractEquations{2, NVARS}, surface_flux_function, volu
   n_elements = nelements(elements)
 
   # Initialize interface container
-  interfaces = init_interfaces(leaf_cell_ids, mesh, elements, Float64, NVARS, POLYDEG)
+  interfaces = init_interfaces(leaf_cell_ids, mesh, elements)
   n_interfaces = ninterfaces(interfaces)
 
   # Initialize MPI interface container
@@ -110,12 +110,12 @@ function Dg2D(equation::AbstractEquations{2, NVARS}, surface_flux_function, volu
   n_mpi_interfaces = nmpiinterfaces(mpi_interfaces)
 
   # Initialize boundaries
-  boundaries, n_boundaries_per_direction = init_boundaries(leaf_cell_ids, mesh, elements, Float64, NVARS, POLYDEG)
+  boundaries, n_boundaries_per_direction = init_boundaries(leaf_cell_ids, mesh, elements)
   n_boundaries = nboundaries(boundaries)
 
   # Initialize mortar containers
   mortar_type = Val(Symbol(parameter("mortar_type", "l2", valid=["l2", "ec"])))
-  l2mortars, ecmortars = init_mortars(leaf_cell_ids, mesh, elements, Float64, NVARS, POLYDEG, mortar_type)
+  l2mortars, ecmortars = init_mortars(leaf_cell_ids, mesh, elements, mortar_type)
   n_l2mortars = nmortars(l2mortars)
   n_ecmortars = nmortars(ecmortars)
 
@@ -499,11 +499,10 @@ end
 #
 # nvars: number of variables
 # polydeg: polynomial degree
-# TODO: Taal refactor, we should pass the basis as argument, not polydeg
-function init_interfaces(cell_ids, mesh::TreeMesh2D, elements, RealT, nvars, polydeg)
+function init_interfaces(cell_ids, mesh::TreeMesh2D, elements::ElementContainer2D{RealT, NVARS, POLYDEG}) where {RealT<:Real, NVARS, POLYDEG}
   # Initialize container
   n_interfaces = count_required_interfaces(mesh, cell_ids)
-  interfaces = InterfaceContainer2D{RealT, nvars, polydeg}(n_interfaces)
+  interfaces = InterfaceContainer2D{RealT, NVARS, POLYDEG}(n_interfaces)
 
   # Connect elements with interfaces
   init_interfaces!(interfaces, elements, mesh)
@@ -517,10 +516,10 @@ end
 # nvars: number of variables
 # polydeg: polynomial degree
 # TODO: Taal refactor, we should pass the basis as argument, not polydeg
-function init_boundaries(cell_ids, mesh::TreeMesh2D, elements, RealT, nvars, polydeg)
+function init_boundaries(cell_ids, mesh::TreeMesh2D, elements::ElementContainer2D{RealT, NVARS, POLYDEG}) where {RealT<:Real, NVARS, POLYDEG}
   # Initialize container
   n_boundaries = count_required_boundaries(mesh, cell_ids)
-  boundaries = BoundaryContainer2D{RealT, nvars, polydeg}(n_boundaries)
+  boundaries = BoundaryContainer2D{RealT, NVARS, POLYDEG}(n_boundaries)
 
   # Connect elements with boundaries
   n_boundaries_per_direction = init_boundaries!(boundaries, elements, mesh)
@@ -534,7 +533,7 @@ end
 # nvars: number of variables
 # polydeg: polynomial degree
 # TODO: Taal refactor, we should pass the basis as argument, not polydeg
-function init_mortars(cell_ids, mesh::TreeMesh2D, elements, RealT, nvars, polydeg, mortar_type)
+function init_mortars(cell_ids, mesh::TreeMesh2D, elements::ElementContainer2D{RealT, NVARS, POLYDEG}, mortar_type) where {RealT<:Real, NVARS, POLYDEG}
   # Initialize containers
   n_mortars = count_required_mortars(mesh, cell_ids)
   if mortar_type === Val(:l2)
@@ -546,8 +545,8 @@ function init_mortars(cell_ids, mesh::TreeMesh2D, elements, RealT, nvars, polyde
   else
     error("unknown mortar type '$(mortar_type)'")
   end
-  l2mortars = L2MortarContainer2D{RealT, nvars, polydeg}(n_l2mortars)
-  ecmortars = EcMortarContainer2D{RealT, nvars, polydeg}(n_ecmortars)
+  l2mortars = L2MortarContainer2D{RealT, NVARS, POLYDEG}(n_l2mortars)
+  ecmortars = EcMortarContainer2D{RealT, NVARS, POLYDEG}(n_ecmortars)
 
   # Connect elements with interfaces and l2mortars
   if mortar_type === Val(:l2)
@@ -561,10 +560,10 @@ function init_mortars(cell_ids, mesh::TreeMesh2D, elements, RealT, nvars, polyde
   return l2mortars, ecmortars
 end
 
-function init_mortars(cell_ids, mesh::TreeMesh2D, elements, RealT, nvars, polydeg, mortar::LobattoLegendreMortarL2)
+function init_mortars(cell_ids, mesh::TreeMesh2D, elements::ElementContainer2D{RealT, NVARS, POLYDEG}, mortar::LobattoLegendreMortarL2) where {RealT<:Real, NVARS, POLYDEG}
   # Initialize containers
   n_mortars = count_required_mortars(mesh, cell_ids)
-  mortars = L2MortarContainer2D{RealT, nvars, polydeg}(n_mortars)
+  mortars = L2MortarContainer2D{RealT, NVARS, POLYDEG}(n_mortars)
   init_mortars!(mortars, elements, mesh)
 
   return mortars

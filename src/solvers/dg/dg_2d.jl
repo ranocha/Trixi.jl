@@ -15,14 +15,11 @@ function create_cache(mesh::TreeMesh{2}, equations::AbstractEquations{2},
   elements = init_elements(leaf_cell_ids, mesh,
                            RealT, nvariables(equations), polydeg(dg))
 
-  interfaces = init_interfaces(leaf_cell_ids, mesh, elements,
-                               RealT, nvariables(equations), polydeg(dg))
+  interfaces = init_interfaces(leaf_cell_ids, mesh, elements)
 
-  boundaries, _ = init_boundaries(leaf_cell_ids, mesh, elements,
-                                  RealT, nvariables(equations), polydeg(dg))
+  boundaries, _ = init_boundaries(leaf_cell_ids, mesh, elements)
 
-  mortars = init_mortars(leaf_cell_ids, mesh, elements,
-                         RealT, nvariables(equations), polydeg(dg), dg.mortar)
+  mortars = init_mortars(leaf_cell_ids, mesh, elements, dg.mortar)
 
   cache = (; elements, interfaces, boundaries, mortars)
 
