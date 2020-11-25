@@ -78,7 +78,8 @@ step_limiter!  = limiter!
 ###############################################################################
 # run the simulation
 
-sol = solve(ode, CarpenterKennedy2N54(stage_limiter!, step_limiter!, williamson_condition=false),
+# sol = solve(ode, CarpenterKennedy2N54(stage_limiter!, step_limiter!, williamson_condition=false),
+sol = solve(ode, SSPRK43(stage_limiter!, step_limiter!),
             dt=1.0, # solve needs some value here but it will be overwritten by the stepsize_callback
             save_everystep=false, callback=callbacks, maxiters=1e5);
 summary_callback() # print the timer summary

@@ -894,6 +894,147 @@ function flux_hll(u_ll, u_rr, orientation, equations::CompressibleEulerEquations
 end
 
 
+"""
+    flux_suliciu(u_ll, u_rr, orientation, equation::CompressibleEulerEquations2D)
+
+The Suliciu relaxation flux described by
+- Bouchut (2004)
+  Nonlinear Stability of Finite Volume Methods for Hyperbolic
+  Conservation Laws and Well-Balanced Schemes for Sources
+  [DOI: 10.1007/b93802](https://doi.org/10.1007/b93802)
+This numerical flux is  entropy-dissipative and preserves positivity under a
+CFL condition not vanishing as the density tends to zero.
+"""
+function flux_suliciu(u_ll, u_rr, orientation, equation::CompressibleEulerEquations2D)
+  # Calculate primitive variables etc.
+  rho_ll, rho_v1_ll, rho_v2_ll, rho_e_ll = u_ll
+  rho_rr, rho_v1_rr, rho_v2_rr, rho_e_rr = u_rr
+
+  v1_ll = rho_v1_ll / rho_ll
+  v2_ll = rho_v2_ll / rho_ll
+  p_ll = (equation.gamma - 1) * (rho_e_ll - 1/2 * rho_ll * (v1_ll^2 + v2_ll^2))
+  c_ll = sqrt(equation.gamma * p_ll / rho_ll)
+  eps_ll = rho_e_ll / rho_ll - 0.5 * (v1_ll^2 + v2_ll^2)
+
+  v1_rr = rho_v1_rr / rho_rr
+  v2_rr = rho_v2_rr / rho_rr
+  p_rr = (equation.gamma - 1) * (rho_e_rr - 1/2 * rho_rr * (v1_rr^2 + v2_rr^2))
+  c_rr = sqrt(equation.gamma * p_rr / rho_rr)
+  eps_rr = rho_e_rr / rho_rr - 0.5 * (v1_rr^2 + v2_rr^2)
+
+  alpha = 0.5 * (equation.gamma + 1)
+  o = zero(rho_ll)
+
+  if orientation == 1 # x-direction
+    # Compute speeds
+    c_rho_ll = o
+    c_rho_rr = o
+    if p_ll <= p_rr && 0 < p_rr
+      c_rho_ll = c_ll + alpha * max( o, (p_rr-p_ll)/(rho_rr*c_rr) + v1_ll - v1_rr )
+      c_rho_rr = c_rr + alpha * max( o, (p_ll-p_rr)/(c_rho_ll*rho_ll) + v1_ll - v1_rr )
+    elseif p_rr <= p_ll && 0 < p_ll
+      c_rho_rr = c_rr + alpha * max( o, (p_ll-p_rr)/(rho_ll*c_ll) + v1_ll - v1_rr )
+      c_rho_ll = c_ll + alpha * max( o, (p_rr-p_ll)/(c_rho_rr*rho_rr) + v1_ll - v1_rr )
+    end
+
+    # Compute intermediate values
+    c_ll = c_rho_ll * rho_ll
+    c_rr = c_rho_rr * rho_rr
+    v1s = ( c_ll*v1_ll + c_rr*v1_rr + p_ll - p_rr ) / ( c_ll+c_rr )
+    v1s = ifelse(isnan(v1s), o, v1s)
+    p_lls = p_rrs = ( c_rr*p_ll + c_ll*p_rr - c_ll*c_rr*(v1_rr-v1_ll) ) / (c_ll+c_rr)
+    p_lls = p_rrs = ifelse(isnan(p_lls), o, p_lls)
+    rho_lls = 1 / ( 1/rho_ll + (c_rr*(v1_rr-v1_ll) + p_ll - p_rr ) / (c_ll*(c_ll+c_rr)) )
+    rho_lls = ifelse(isnan(rho_lls), o, rho_lls)
+    rho_rrs = 1 / ( 1/rho_rr + (c_ll*(v1_rr-v1_ll) + p_rr - p_ll ) / (c_rr*(c_ll+c_rr)) )
+    rho_rrs = ifelse(isnan(rho_rrs), o, rho_rrs)
+    eps_lls = eps_ll + (p_lls*p_lls - p_ll*p_ll)/(2*c_ll*c_ll)
+    eps_rrs = eps_rr + (p_rrs*p_rrs - p_rr*p_rr)/(2*c_rr*c_rr)
+
+    # Compute fluxes
+    if 0 <= v1_ll-c_rho_ll
+      # @show "1, 1"
+      f1 = rho_ll*v1_ll
+      f2 = rho_ll*v1_ll*v1_ll + p_ll
+      f3 = rho_ll*v1_ll*v2_ll
+      f4 = (rho_ll*v1_ll*v1_ll/2 + rho_ll*v2_ll*v2_ll/2 + rho_ll*eps_ll + p_ll)*v1_ll
+    elseif 0 <= v1s
+      # @show "1, 2"
+      f1 = rho_lls*v1s
+      f2 = rho_lls*v1s*v1s + p_lls
+      f3 = rho_ll*v1s*v2_ll
+      f4 = (rho_lls*v1s*v1s/2 + rho_lls*v2_ll*v2_ll/2 + rho_lls*eps_lls + p_lls)*v1s
+    elseif 0 <= v1_rr+c_rho_rr
+      # @show "1, 3"
+      f1 = rho_rrs*v1s
+      f2 = rho_rrs*v1s*v1s + p_rrs
+      f3 = rho_ll*v1s*v2_rr
+      f4 = (rho_rrs*v1s*v1s/2 + rho_rrs*v2_rr*v2_rr/2 + rho_rrs*eps_rrs + p_rrs)*v1s
+    else
+      # @show "1, 4"
+      f1 = rho_rr*v1_rr
+      f2 = rho_rr*v1_rr*v1_rr + p_rr
+      f3 = rho_ll*v1_rr*v2_rr
+      f4 = (rho_rr*v1_rr*v1_rr/2 + rho_rr*v2_rr*v2_rr/2 + rho_rr*eps_rr + p_rr)*v1_rr
+    end
+  else # y-direction
+    # Compute speeds
+    c_rho_ll = o
+    c_rho_rr = o
+    if p_ll <= p_rr && 0 < p_rr
+      c_rho_ll = c_ll + alpha*max( o, (p_rr-p_ll)/(rho_rr*c_rr) + v2_ll - v2_rr )
+      c_rho_rr = c_rr + alpha*max( o, (p_ll-p_rr)/(c_rho_ll*rho_ll) + v2_ll - v2_rr )
+    elseif p_rr <= p_ll && 0 < p_ll
+      c_rho_rr = c_rr + alpha*max( o, (p_ll-p_rr)/(rho_ll*c_ll) + v2_ll - v2_rr )
+      c_rho_ll = c_ll + alpha*max( o, (p_rr-p_ll)/(c_rho_rr*rho_rr) + v2_ll - v2_rr )
+    end
+
+    # Compute intermediate values
+    c_ll = c_rho_ll*rho_ll
+    c_rr = c_rho_rr*rho_rr
+    v2s = ( c_ll*v2_ll + c_rr*v2_rr + p_ll - p_rr ) / ( c_ll+c_rr )
+    v2s = ifelse(isnan(v2s), o, v2s)
+    p_lls = p_rrs = ( c_rr*p_ll + c_ll*p_rr - c_ll*c_rr*(v2_rr-v2_ll) ) / (c_ll+c_rr)
+    p_lls = p_rrs = ifelse(isnan(p_lls), o, p_lls)
+    rho_lls = 1 / ( 1/rho_ll + (c_rr*(v2_rr-v2_ll) + p_ll - p_rr ) / (c_ll*(c_ll+c_rr)) )
+    rho_lls = ifelse(isnan(rho_lls), o, rho_lls)
+    rho_rrs = 1 / ( 1/rho_rr + (c_ll*(v2_rr-v2_ll) + p_rr - p_ll ) / (c_rr*(c_ll+c_rr)) )
+    rho_rrs = ifelse(isnan(rho_rrs), o, rho_rrs)
+    eps_lls = eps_ll + (p_lls*p_lls - p_ll*p_ll)/(2*c_ll*c_ll)
+    eps_rrs = eps_rr + (p_rrs*p_rrs - p_rr*p_rr)/(2*c_rr*c_rr)
+
+    # Compute fluxes
+    if 0 <= v1_ll-c_rho_ll
+      # @show "2, 1"
+      f1 = rho_ll*v2_ll
+      f2 = rho_ll*v1_ll*v2_ll
+      f3 = rho_ll*v2_ll*v2_ll + p_ll
+      f4 = (rho_ll*v1_ll*v1_ll/2 + rho_ll*v2_ll*v2_ll/2 + rho_ll*eps_ll + p_ll)*v2_ll
+    elseif 0 <= v2s
+      # @show "2, 2"
+      f1 = rho_lls*v2s
+      f2 = rho_lls*v1_ll*v2s
+      f3 = rho_ll*v2s*v2s + p_lls
+      f4 = (rho_lls*v1_ll*v1_ll/2 + rho_lls*v2s*v2s/2 + rho_lls*eps_lls + p_lls)*v2s
+    elseif 0 <= v2_rr+c_rho_rr
+      # @show "2, 3"
+      f1 = rho_rrs*v2s
+      f2 = rho_rrs*v1_rr*v2s
+      f3 = rho_ll*v2s*v2s + p_rrs
+      f4 = (rho_rrs*v1_rr*v1_rr/2 + rho_rrs*v2s*v2s/2 + rho_rrs*eps_rrs + p_rrs)*v2s
+    else
+      # @show "2, 4"
+      f1 = rho_rr*v2_rr
+      f2 = rho_rr*v1_rr*v2_rr
+      f3 = rho_ll*v2_rr*v2_rr + p_rr
+      f4 = (rho_rr*v1_rr*v1_rr/2 + rho_rr*v2_rr*v2_rr/2 + rho_rr*eps_rr + p_rr)*v2_rr
+    end
+  end
+
+  return SVector(f1, f2, f3, f4)
+end
+
+
 
 @inline function max_abs_speeds(u, equations::CompressibleEulerEquations2D)
   rho, rho_v1, rho_v2, rho_e = u
