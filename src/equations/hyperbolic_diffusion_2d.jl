@@ -110,6 +110,51 @@ end
   return flux
 end
 
+@inline function boundary_condition_poisson_nonperiodic_new(u_inner, orientation, direction, x, t,
+                                                            surface_flux_function,
+                                                            equations::HyperbolicDiffusionEquations2D)
+  # elliptic equation: -ν Δϕ = f in Ω, u = g on ∂Ω
+
+  # # Calculate boundary flux
+  # u_boundary = initial_condition_poisson_nonperiodic(x, one(t), equations)
+  # if direction in (2, 4) # u_inner is "left" of boundary, u_boundary is "right" of boundary
+  #   flux = surface_flux_function(u_inner, u_boundary, orientation, equations)
+  # else # u_boundary is "left" of boundary, u_inner is "right" of boundary
+  #   flux = surface_flux_function(u_boundary, u_inner, orientation, equations)
+  # end
+
+  # The two variants below seem to reduce
+  # - the condition number of the linear operator by ca. 8%
+  # - the required number of iterations by ca. 60%
+  # in `examples/2d/elixir_hypdiff_nonperiodic.jl`.
+  # However, the EOC in `q` is reduced to `polydeg + 1/2` instead of `polydeg + 1`
+  # as for the BC above; the EOC for `phi` is still `polydeg + 1` in both variants.
+
+  # Calculate boundary flux by setting the value of the incoming characteristic
+  # variables to the outgoing characteristic variables plus the boundary value.
+  # This version is made to impose a BC on phi only, in contrast to the BC above
+  # which imposes a BC for the incoming characteristic variable, a combination
+  # of phi and q.
+  phi_bc = 2 * cospi(x[1]) * sinpi(2*x[2]) + 2
+  phi, q1, q2 = u_inner
+  sqrt_inv_Tr = sqrt(equations.inv_Tr)
+  if direction == 1 # -x
+    u_bc = SVector(phi_bc, q1 + sqrt_inv_Tr * (phi - phi_bc), 0)
+    flux = calcflux(u_bc, 1, equations)
+  elseif direction == 2 # +x
+    u_bc = SVector(phi_bc, q1 - sqrt_inv_Tr * (phi - phi_bc), 0)
+    flux = calcflux(u_bc, 1, equations)
+  elseif direction == 3 # -y
+    u_bc = SVector(phi_bc, 0, q2 + sqrt_inv_Tr * (phi - phi_bc))
+    flux = calcflux(u_bc, 2, equations)
+  elseif direction == 4 # +y
+    u_bc = SVector(phi_bc, 0, q2 - sqrt_inv_Tr * (phi - phi_bc))
+    flux = calcflux(u_bc, 2, equations)
+  end
+
+  return flux
+end
+
 
 @inline function initial_condition_harmonic_nonperiodic(x, t, equations::HyperbolicDiffusionEquations2D)
   # elliptic equation: -ν Δϕ = 0 in Ω, u = g on ∂Ω
