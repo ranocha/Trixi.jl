@@ -40,11 +40,46 @@ semi_euler = SemidiscretizationHyperbolic(mesh, equations_euler, initial_conditi
 equations_gravity = HyperbolicDiffusionEquations2D()
 
 # TODO: Taal, define initial/boundary conditions here for gravity?
+@inline function boundary_condition_sedov_self_gravity_dirichlet(u_inner, orientation, direction, x, t,
+                                                                 surface_flux_function,
+                                                                 equations::HyperbolicDiffusionEquations2D)
+  # elliptic equation: -ν Δϕ = f in Ω, u = g on ∂Ω
 
-solver_gravity = DGSEM(polydeg, flux_lax_friedrichs)
+  # Calculate boundary flux by setting the value of the incoming characteristic
+  # variables to the outgoing characteristic variables plus the boundary value.
+  # This version is made to impose a BC on phi only, in contrast to the BC above
+  # which imposes a BC for the incoming characteristic variable, a combination
+  # of phi and q, at least if the upwind flux is used.
+#   phi_bc = 2 * cospi(x[1]) * sinpi(2*x[2]) + 2
+  phi_bc, q1_bc, q2_bc = initial_condition_sedov_self_gravity(x, one(t), equations)
+  phi, q1, q2 = u_inner
+  inv_Tr = equations.inv_Tr
+  sqrt_inv_Tr = sqrt(inv_Tr)
+  if direction == 1 # -x
+    flux = SVector(-q1 - sqrt_inv_Tr * (phi - phi_bc),
+                   -inv_Tr * phi_bc,
+                   0)
+  elseif direction == 2 # +x
+    flux = SVector(-q1 + sqrt_inv_Tr * (phi - phi_bc),
+                   -inv_Tr * phi_bc,
+                   0)
+  elseif direction == 3 # -y
+    flux = SVector(-q2 - sqrt_inv_Tr * (phi - phi_bc),
+                   0,
+                   -inv_Tr * phi_bc)
+  else # if direction == 4 # +y
+    flux = SVector(-q2 + sqrt_inv_Tr * (phi - phi_bc),
+                   0,
+                   -inv_Tr * phi_bc)
+  end
+
+  return flux
+end
+
+solver_gravity = DGSEM(polydeg, flux_upwind)
 
 semi_gravity = SemidiscretizationHyperbolic(mesh, equations_gravity, initial_condition, solver_gravity,
-                                            boundary_conditions=boundary_conditions,
+                                            boundary_conditions=boundary_condition_sedov_self_gravity_dirichlet,
                                             source_terms=source_terms_harmonic)
 
 
