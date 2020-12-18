@@ -43,15 +43,24 @@ equations_gravity = HyperbolicDiffusionEquations2D()
 @inline function boundary_condition_sedov_self_gravity_dirichlet(u_inner, orientation, direction, x, t,
                                                                  surface_flux_function,
                                                                  equations::HyperbolicDiffusionEquations2D)
-  # elliptic equation: -ν Δϕ = f in Ω, u = g on ∂Ω
 
   # Calculate boundary flux by setting the value of the incoming characteristic
   # variables to the outgoing characteristic variables plus the boundary value.
-  # This version is made to impose a BC on phi only, in contrast to the BC above
-  # which imposes a BC for the incoming characteristic variable, a combination
-  # of phi and q, at least if the upwind flux is used.
-#   phi_bc = 2 * cospi(x[1]) * sinpi(2*x[2]) + 2
-  phi_bc, q1_bc, q2_bc = initial_condition_sedov_self_gravity(x, one(t), equations)
+  # phi_bc, q1_bc, q2_bc = initial_condition_sedov_self_gravity(x, one(t), equations)
+
+  # In two space dimensions, the Green's function for the Laplace operator -Δ is
+  # Γ(x) = - log(r) / 2π, where r = |x| is the radius.
+  # By Newton's theorem, the gravitational potential of a rotationally symmetric
+  # mass distribution with compact support is equal to the gravitational potential
+  # from a point mass centered at the origin which has the same total mass.
+  # Since we use the gravity equation -Δ φ = -4π G ϱ, we must scale the Green's
+  # function Γ by -4π G to get the potential of the point mass.
+  r = sqrt(x[1]^2 + x[2]^2)
+  integral_rho = 3.1420520058369088 # N[Integrate[2*Pi*r*Max[1/(1.0 + exp(150*(r - 1))), 0*10^(-5)], {r, 0, 4}], 16]
+  gravitational_constant = 6.674e-8
+  phi_bc = 1 + 2 * gravitational_constant * integral_rho * log(r) # 2 = 4π / 2π
+  @info phi_bc
+
   phi, q1, q2 = u_inner
   inv_Tr = equations.inv_Tr
   sqrt_inv_Tr = sqrt(inv_Tr)
@@ -79,6 +88,7 @@ end
 solver_gravity = DGSEM(polydeg, flux_upwind)
 
 semi_gravity = SemidiscretizationHyperbolic(mesh, equations_gravity, initial_condition, solver_gravity,
+                                            # boundary_conditions=boundary_condition_sedov_self_gravity,
                                             boundary_conditions=boundary_condition_sedov_self_gravity_dirichlet,
                                             source_terms=source_terms_harmonic)
 
