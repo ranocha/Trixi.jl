@@ -101,7 +101,7 @@ export initial_condition_constant,
        initial_condition_sedov_blast_wave, initial_condition_medium_sedov_blast_wave,
        initial_condition_two_interacting_blast_waves, boundary_condition_two_interacting_blast_waves,
        initial_condition_sod_shock_tube, boundary_condition_sod_shock_tube,
-       initial_condition_shock_tube, 
+       initial_condition_shock_tube,
        initial_condition_knallgas_detonation, boundary_condition_knallgas_detonation, source_terms_knallgas_detonation,
        initial_condition_blob,
        initial_condition_orszag_tang,
@@ -184,6 +184,7 @@ end
 
 
 include("auxiliary/precompile.jl")
+# include("auxiliary/precompile_backup.jl")
 _precompile_manual_()
 
 

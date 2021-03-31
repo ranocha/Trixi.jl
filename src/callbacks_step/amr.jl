@@ -79,7 +79,7 @@ function Base.show(io::IO, mime::MIME"text/plain", cb::DiscreteCallback{<:Any, <
     summary_line(io, "controller", amr_callback.controller |> typeof |> nameof)
     show(increment_indent(io), mime, amr_callback.controller)
     summary_line(io, "interval", amr_callback.interval)
-    summary_line(io, "adapt IC", amr_callback.adapt_initial_condition ? "yes" : "no",)
+    summary_line(io, "adapt IC", amr_callback.adapt_initial_condition ? "yes" : "no")
     if amr_callback.adapt_initial_condition
       summary_line(io, "│ only refine", amr_callback.adapt_initial_condition_only_refine ? "yes" : "no")
     end

@@ -13,7 +13,7 @@ surface_flux = flux_hll
 volume_flux  = flux_derigs_etal
 solver = DGSEM(3, surface_flux, VolumeIntegralFluxDifferencing(volume_flux))
 
-coordinates_min = (0, 0)
+coordinates_min = (0.0, 0.0)
 coordinates_max = (sqrt(2), sqrt(2))
 refinement_patches = (
   (type="box", coordinates_min=0.25 .* coordinates_max,

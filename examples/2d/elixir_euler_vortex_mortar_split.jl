@@ -13,8 +13,8 @@ surface_flux = flux_lax_friedrichs
 volume_flux = flux_kennedy_gruber
 solver = DGSEM(3, surface_flux, VolumeIntegralFluxDifferencing(volume_flux))
 
-coordinates_min = (-10, -10)
-coordinates_max = ( 10,  10)
+coordinates_min = (-10.0, -10.0)
+coordinates_max = ( 10.0,  10.0)
 refinement_patches = (
   (type="box", coordinates_min=(0.0, -10.0), coordinates_max=(10.0, 10.0)),
 )
@@ -52,7 +52,7 @@ save_solution = SaveSolutionCallback(interval=100,
 stepsize_callback = StepsizeCallback(cfl=1.4)
 
 callbacks = CallbackSet(summary_callback,
-                        analysis_callback, alive_callback, 
+                        analysis_callback, alive_callback,
                         save_restart, save_solution,
                         stepsize_callback)
 

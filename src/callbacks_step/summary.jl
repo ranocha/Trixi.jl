@@ -74,7 +74,7 @@ function squeeze(message, max_width; filler::Char='…')
 end
 
 # Print a summary with a box around it with a given heading and a setup of key=>value pairs
-function summary_box(io::IO, heading, setup=[])
+function summary_box(io::IO, heading, setup=Pair{String, Any}[])
   summary_header(io, heading)
   for (key, value) in setup
     summary_line(io, key, value)
@@ -97,7 +97,7 @@ function summary_header(io, heading; total_width=100, indentation_level=0)
   println(io, "│ " * "═"^length(heading) * " "^(total_width - length(heading) - 4) * " │")
 end
 
-function summary_line(io, key, value; key_width=30, total_width=100, indentation_level=0)
+function summary_line(io, key, value, key_width=30, total_width=100, indentation_level=0)
   # Printing is not performance-critical, so we can use `@nospecialize` to reduce latency
   @nospecialize value # reduce precompilation time
 

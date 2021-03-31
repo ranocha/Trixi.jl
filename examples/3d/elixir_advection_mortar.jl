@@ -13,8 +13,8 @@ initial_condition = initial_condition_convergence_test
 surface_flux = flux_lax_friedrichs
 solver = DGSEM(3, surface_flux)
 
-coordinates_min = (-1, -1, -1)
-coordinates_max = ( 1,  1,  1)
+coordinates_min = (-1.0, -1.0, -1.0)
+coordinates_max = ( 1.0,  1.0,  1.0)
 refinement_patches = (
   (type="box", coordinates_min=(0.0, -1.0, -1.0), coordinates_max=(1.0, 1.0, 1.0)),
   (type="box", coordinates_min=(0.0, -0.5, -0.5), coordinates_max=(0.5, 0.5, 0.5)),
@@ -53,10 +53,10 @@ stepsize_callback = StepsizeCallback(cfl=1.2)
 
 analysis_interval = 100
 
-callbacks = CallbackSet(summary_callback, 
-                        analysis_callback, 
+callbacks = CallbackSet(summary_callback,
+                        analysis_callback,
                         alive_callback,
-                        save_restart, 
+                        save_restart,
                         save_solution,
                         stepsize_callback)
 
