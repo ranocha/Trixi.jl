@@ -12,11 +12,11 @@ initial_condition = initial_condition_convergence_test
 source_terms = source_terms_convergence_test
 
 boundary_condition_convergence_test = BoundaryConditionDirichlet(initial_condition)
-boundary_conditions = Dict( "Slant" => boundary_condition_convergence_test,
-                            "Bezier" => boundary_condition_convergence_test,
-                            "Right"  => boundary_condition_convergence_test,
-                            "Bottom" => boundary_condition_convergence_test,
-                            "Top"    => boundary_condition_convergence_test )
+boundary_conditions = Dict( :Slant  => boundary_condition_convergence_test,
+                            :Bezier => boundary_condition_convergence_test,
+                            :Right  => boundary_condition_convergence_test,
+                            :Bottom => boundary_condition_convergence_test,
+                            :Top    => boundary_condition_convergence_test )
 
 ###############################################################################
 # Get the DG approximation space
@@ -53,6 +53,9 @@ analysis_callback = AnalysisCallback(semi, interval=analysis_interval)
 
 alive_callback = AliveCallback(analysis_interval=analysis_interval)
 
+save_restart = SaveRestartCallback(interval=50,
+                                   save_final_restart=true)
+
 save_solution = SaveSolutionCallback(interval=10,
                                      save_initial_solution=true,
                                      save_final_solution=true)
@@ -62,6 +65,7 @@ stepsize_callback = StepsizeCallback(cfl=0.9)
 callbacks = CallbackSet(summary_callback,
                         analysis_callback,
                         alive_callback,
+                        save_restart,
                         save_solution,
                         stepsize_callback)
 
