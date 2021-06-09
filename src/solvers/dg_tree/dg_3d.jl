@@ -40,13 +40,12 @@ end
 
 function create_cache(mesh::TreeMesh{3}, nonconservative_terms::Val{true}, equations, ::VolumeIntegralFluxDifferencing, dg, uEltype)
 
-  A = Array{uEltype, 5}
-  f1_threaded = A[A(undef, nvariables(equations), nnodes(dg), nnodes(dg), nnodes(dg), nnodes(dg))
-                  for _ in 1:Threads.nthreads()]
-  f2_threaded = A[A(undef, nvariables(equations), nnodes(dg), nnodes(dg), nnodes(dg), nnodes(dg))
-                  for _ in 1:Threads.nthreads()]
-  f3_threaded = A[A(undef, nvariables(equations), nnodes(dg), nnodes(dg), nnodes(dg), nnodes(dg))
-                  for _ in 1:Threads.nthreads()]
+  prototype = Array{uEltype, 5}(undef, nvariables(equations), nnodes(dg), nnodes(dg), nnodes(dg), nnodes(dg))
+  # prototype = StrideArray(undef, uEltype, StaticInt(nvariables(equations)),
+  #                         StaticInt(nnodes(dg)), StaticInt(nnodes(dg)), StaticInt(nnodes(dg)), StaticInt(nnodes(dg)))
+  f1_threaded = [similar(prototype) for _ in 1:Threads.nthreads()]
+  f2_threaded = [similar(prototype) for _ in 1:Threads.nthreads()]
+  f3_threaded = [similar(prototype) for _ in 1:Threads.nthreads()]
 
   A3d = Array{uEltype, 3}
   fstar_upper_left_threaded  = A3d[A3d(undef, nvariables(equations), nnodes(dg), nnodes(dg))
@@ -381,17 +380,23 @@ end
   calcflux_twopoint!(f1, f2, f3, u, element, volume_flux, equations, dg, cache)
 
   # Calculate volume integral in one element
-  for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
-    for v in eachvariable(equations)
-      # Use local accumulator to improve performance
-      acc = zero(eltype(du))
-      for l in eachnode(dg)
-        acc += (derivative_split_transpose[l, i] * f1[v, l, i, j, k] +
-                derivative_split_transpose[l, j] * f2[v, l, i, j, k] +
-                derivative_split_transpose[l, k] * f3[v, l, i, j, k] )
-      end
-      du[v, i, j, k, element] += alpha * acc
+  # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  #   for v in eachvariable(equations)
+  #     # Use local accumulator to improve performance
+  #     acc = zero(eltype(du))
+  #     for l in eachnode(dg)
+  @turbo for k in indices((du, f1, f2, f3, derivative_split_transpose), (4, 5, 5, 5, 2)),
+             j in indices((du, f1, f2, f3, derivative_split_transpose), (3, 4, 4, 4, 2)),
+             i in indices((du, f1, f2, f3, derivative_split_transpose), (2, 3, 3, 3, 2)),
+             v in indices((du, f1, f2, f3), (1, 1, 1, 1))
+    # Use local accumulator to improve performance
+    acc = zero(eltype(du))
+    for l in indices((derivative_split_transpose, f1, f2, f3), (1, 2, 2, 2))
+      acc += (derivative_split_transpose[l, i] * f1[v, l, i, j, k] +
+              derivative_split_transpose[l, j] * f2[v, l, i, j, k] +
+              derivative_split_transpose[l, k] * f3[v, l, i, j, k] )
     end
+    du[v, i, j, k, element] += alpha * acc
   end
 
   return nothing

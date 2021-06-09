@@ -181,39 +181,101 @@ end
 
 # Calculate the nonconservative terms from Powell and Galilean invariance
 # OBS! This is scaled by 1/2 becuase it will cancel later with the factor of 2 in dsplit_transposed
+# @inline function calcflux_twopoint_nonconservative!(f1, f2, f3, u, element,
+#                                                     equations::IdealGlmMhdEquations3D, dg, cache)
+#   for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+#     rho, rho_v1, rho_v2, rho_v3, rho_e, B1, B2, B3, psi = get_node_vars(u, equations, dg, i, j, k, element)
+#     v1 = rho_v1 / rho
+#     v2 = rho_v2 / rho
+#     v3 = rho_v3 / rho
+
+#     # Powell nonconservative term: Φ^Pow = (0, B_1, B_2, B_3, v⋅B, v_1, v_2, v_3, 0)
+#     phi_pow = 0.5 * SVector(0, B1, B2, B3, v1*B1 + v2*B2 + v3*B3, v1, v2, v3, 0)
+
+#     # Galilean nonconservative term: Φ^Gal_{1,2} = (0, 0, 0, 0, ψ v_{1,2}, 0, 0, 0, v_{1,2})
+#     # x-direction
+#     phi_gal_x = 0.5 * SVector(0, 0, 0, 0, v1*psi, 0, 0, 0, v1)
+#     # y-direction
+#     phi_gal_y = 0.5 * SVector(0, 0, 0, 0, v2*psi, 0, 0, 0, v2)
+#     # z-direction
+#     phi_gal_z = 0.5 * SVector(0, 0, 0, 0, v3*psi, 0, 0, 0, v3)
+
+#     # add both nonconservative terms into the volume
+#     for l in eachnode(dg)
+#       _, _, _, _, _, B1, _, _, psi = get_node_vars(u, equations, dg, l, j, k, element)
+#       for v in eachvariable(equations)
+#         f1[v, l, i, j, k] += phi_pow[v] * B1 + phi_gal_x[v] * psi
+#       end
+#       _, _, _, _, _, _, B2, _, psi = get_node_vars(u, equations, dg, i, l, k, element)
+#       for v in eachvariable(equations)
+#         f2[v, l, i, j, k] += phi_pow[v] * B2 + phi_gal_y[v] * psi
+#       end
+#       _, _, _, _, _, _, _, B3, psi = get_node_vars(u, equations, dg, i, j, l, element)
+#       for v in eachvariable(equations)
+#         f3[v, l, i, j, k] += phi_pow[v] * B3 + phi_gal_z[v] * psi
+#       end
+#     end
+#   end
+
+#   return nothing
+# end
+
 @inline function calcflux_twopoint_nonconservative!(f1, f2, f3, u, element,
                                                     equations::IdealGlmMhdEquations3D, dg, cache)
-  for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
-    rho, rho_v1, rho_v2, rho_v3, rho_e, B1, B2, B3, psi = get_node_vars(u, equations, dg, i, j, k, element)
+  @turbo for k in indices((u, f1, f2, f3), (4, 5, 5, 5)),
+             j in indices((u, f1, f2, f3), (3, 4, 4, 4)),
+             i in indices((u, f1, f2, f3), (2, 3, 3, 3))
+    rho    = u[1, i, j, k, element]
+    rho_v1 = u[2, i, j, k, element]
+    rho_v2 = u[3, i, j, k, element]
+    rho_v3 = u[4, i, j, k, element]
+    #rho_e = u[5, i, j, k, element]
+    B1     = u[6, i, j, k, element]
+    B2     = u[7, i, j, k, element]
+    B3     = u[8, i, j, k, element]
+    psi    = u[9, i, j, k, element]
     v1 = rho_v1 / rho
     v2 = rho_v2 / rho
     v3 = rho_v3 / rho
+    v_dot_B = (v1*B1 + v2*B2 + v3*B3)
 
-    # Powell nonconservative term: Φ^Pow = (0, B_1, B_2, B_3, v⋅B, v_1, v_2, v_3, 0)
-    phi_pow = 0.5 * SVector(0, B1, B2, B3, v1*B1 + v2*B2 + v3*B3, v1, v2, v3, 0)
+    # add nonconservative terms into the volume
+    for l in indices((u, u, u, f1, f2, f3), (2, 3, 4, 2, 2, 2))
+      B1_l   = 0.5 * u[6, l, j, k, element]
+      psi_l1 = 0.5 * u[9, l, j, k, element]
+      #f1[1, l, i, j, k]+= 0
+      f1[2, l, i, j, k] += B1 * B1_l
+      f1[3, l, i, j, k] += B2 * B1_l
+      f1[4, l, i, j, k] += B3 * B1_l
+      f1[5, l, i, j, k] += v_dot_B * B1_l + v1 * psi * psi_l1
+      f1[6, l, i, j, k] += v1 * B1_l
+      f1[7, l, i, j, k] += v2 * B1_l
+      f1[8, l, i, j, k] += v3 * B1_l
+      f1[9, l, i, j, k] += v1 * psi_l1
 
-    # Galilean nonconservative term: Φ^Gal_{1,2} = (0, 0, 0, 0, ψ v_{1,2}, 0, 0, 0, v_{1,2})
-    # x-direction
-    phi_gal_x = 0.5 * SVector(0, 0, 0, 0, v1*psi, 0, 0, 0, v1)
-    # y-direction
-    phi_gal_y = 0.5 * SVector(0, 0, 0, 0, v2*psi, 0, 0, 0, v2)
-    # z-direction
-    phi_gal_z = 0.5 * SVector(0, 0, 0, 0, v3*psi, 0, 0, 0, v3)
+      B2_l   = 0.5 * u[7, i, l, k, element]
+      psi_l2 = 0.5 * u[9, i, l, k, element]
+      #f2[1, l, i, j, k]+= 0
+      f2[2, l, i, j, k] += B1 * B2_l
+      f2[3, l, i, j, k] += B2 * B2_l
+      f2[4, l, i, j, k] += B3 * B2_l
+      f2[5, l, i, j, k] += v_dot_B * B2_l + v2 * psi * psi_l2
+      f2[6, l, i, j, k] += v1 * B2_l
+      f2[7, l, i, j, k] += v2 * B2_l
+      f2[8, l, i, j, k] += v3 * B2_l
+      f2[9, l, i, j, k] += v2 * psi_l2
 
-    # add both nonconservative terms into the volume
-    for l in eachnode(dg)
-      _, _, _, _, _, B1, _, _, psi = get_node_vars(u, equations, dg, l, j, k, element)
-      for v in eachvariable(equations)
-        f1[v, l, i, j, k] += phi_pow[v] * B1 + phi_gal_x[v] * psi
-      end
-      _, _, _, _, _, _, B2, _, psi = get_node_vars(u, equations, dg, i, l, k, element)
-      for v in eachvariable(equations)
-        f2[v, l, i, j, k] += phi_pow[v] * B2 + phi_gal_y[v] * psi
-      end
-      _, _, _, _, _, _, _, B3, psi = get_node_vars(u, equations, dg, i, j, l, element)
-      for v in eachvariable(equations)
-        f3[v, l, i, j, k] += phi_pow[v] * B3 + phi_gal_z[v] * psi
-      end
+      B3_l   = 0.5 * u[8, i, j, l, element]
+      psi_l3 = 0.5 * u[9, i, j, l, element]
+      #f3[1, l, i, j, k]+= 0
+      f3[2, l, i, j, k] += B1 * B3_l
+      f3[3, l, i, j, k] += B2 * B3_l
+      f3[4, l, i, j, k] += B3 * B3_l
+      f3[5, l, i, j, k] += v_dot_B * B3_l + v3 * psi * psi_l3
+      f3[6, l, i, j, k] += v1 * B3_l
+      f3[7, l, i, j, k] += v2 * B3_l
+      f3[8, l, i, j, k] += v3 * B3_l
+      f3[9, l, i, j, k] += v3 * psi_l3
     end
   end
 
