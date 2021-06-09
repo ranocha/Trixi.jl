@@ -306,7 +306,7 @@ function calc_volume_integral!(du, u,
   end
 end
 
-@inline function split_form_kernel!(du::AbstractArray{<:Any,5}, u,
+@muladd @inline function split_form_kernel!(du::AbstractArray{<:Any,5}, u,
                                     nonconservative_terms::Val{false}, equations,
                                     volume_flux, dg::DGSEM, cache,
                                     element, alpha=true)
@@ -319,48 +319,54 @@ end
     u_node = get_node_vars(u, equations, dg, i, j, k, element)
 
     # x direction
-    # use consistency of the volume flux to make this evaluation cheaper
-    flux1 = flux(u_node, 1, equations)
-    integral_contribution = alpha * derivative_split[i, i] * flux1
-    add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k, element)
+    # # use consistency of the volume flux to make this evaluation cheaper
+    # flux1 = flux(u_node, 1, equations)
+    # integral_contribution = alpha * derivative_split[i, i] * flux1
+    # add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k, element)
     # use symmetry of the volume flux for the remaining terms
     for ii in (i+1):nnodes(dg)
       u_node_ii = get_node_vars(u, equations, dg, ii, j, k, element)
       flux1 = volume_flux(u_node, u_node_ii, 1, equations)
-      integral_contribution = alpha * derivative_split[i, ii] * flux1
-      add_to_node_vars!(du, integral_contribution, equations, dg, i,  j, k, element)
-      integral_contribution = alpha * derivative_split[ii, i] * flux1
-      add_to_node_vars!(du, integral_contribution, equations, dg, ii, j, k, element)
+      # integral_contribution = alpha * derivative_split[i, ii] * flux1
+      # add_to_node_vars!(du, integral_contribution, equations, dg, i,  j, k, element)
+      add_to_node_vars!(du, alpha * derivative_split[i, ii], flux1, equations, dg, i,  j, k, element)
+      # integral_contribution = alpha * derivative_split[ii, i] * flux1
+      # add_to_node_vars!(du, integral_contribution, equations, dg, ii, j, k, element)
+      add_to_node_vars!(du, alpha * derivative_split[ii, i], flux1, equations, dg, ii, j, k, element)
     end
 
     # y direction
-    # use consistency of the volume flux to make this evaluation cheaper
-    flux2 = flux(u_node, 2, equations)
-    integral_contribution = alpha * derivative_split[j, j] * flux2
-    add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k, element)
+    # # use consistency of the volume flux to make this evaluation cheaper
+    # flux2 = flux(u_node, 2, equations)
+    # integral_contribution = alpha * derivative_split[j, j] * flux2
+    # add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k, element)
     # use symmetry of the volume flux for the remaining terms
     for jj in (j+1):nnodes(dg)
       u_node_jj = get_node_vars(u, equations, dg, i, jj, k, element)
       flux2 = volume_flux(u_node, u_node_jj, 2, equations)
-      integral_contribution = alpha * derivative_split[j, jj] * flux2
-      add_to_node_vars!(du, integral_contribution, equations, dg, i, j,  k, element)
-      integral_contribution = alpha * derivative_split[jj, j] * flux2
-      add_to_node_vars!(du, integral_contribution, equations, dg, i, jj, k, element)
+      # integral_contribution = alpha * derivative_split[j, jj] * flux2
+      # add_to_node_vars!(du, integral_contribution, equations, dg, i, j,  k, element)
+      add_to_node_vars!(du, alpha * derivative_split[j, jj], flux2, equations, dg, i, j,  k, element)
+      # integral_contribution = alpha * derivative_split[jj, j] * flux2
+      # add_to_node_vars!(du, integral_contribution, equations, dg, i, jj, k, element)
+      add_to_node_vars!(du, alpha * derivative_split[jj, j], flux2, equations, dg, i, jj, k, element)
     end
 
     # z direction
-    # use consistency of the volume flux to make this evaluation cheaper
-    flux3 = flux(u_node, 3, equations)
-    integral_contribution = alpha * derivative_split[k, k] * flux3
-    add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k, element)
+    # # use consistency of the volume flux to make this evaluation cheaper
+    # flux3 = flux(u_node, 3, equations)
+    # integral_contribution = alpha * derivative_split[k, k] * flux3
+    # add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k, element)
     # use symmetry of the volume flux for the remaining terms
     for kk in (k+1):nnodes(dg)
       u_node_kk = get_node_vars(u, equations, dg, i, j, kk, element)
       flux3 = volume_flux(u_node, u_node_kk, 3, equations)
-      integral_contribution = alpha * derivative_split[k, kk] * flux3
-      add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k,  element)
-      integral_contribution = alpha * derivative_split[kk, k] * flux3
-      add_to_node_vars!(du, integral_contribution, equations, dg, i, j, kk, element)
+      # integral_contribution = alpha * derivative_split[k, kk] * flux3
+      # add_to_node_vars!(du, integral_contribution, equations, dg, i, j, k,  element)
+      add_to_node_vars!(du, alpha * derivative_split[k, kk], flux3, equations, dg, i, j, k,  element)
+      # integral_contribution = alpha * derivative_split[kk, k] * flux3
+      # add_to_node_vars!(du, integral_contribution, equations, dg, i, j, kk, element)
+      add_to_node_vars!(du, alpha * derivative_split[kk, k], flux3, equations, dg, i, j, kk, element)
     end
   end
 end

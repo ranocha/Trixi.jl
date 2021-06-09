@@ -27,7 +27,8 @@ using Reexport: @reexport
 import DiffEqBase: CallbackSet, DiscreteCallback,
                    ODEProblem, ODESolution, ODEFunction,
                    get_du, get_tmp_cache, u_modified!,
-                   get_proposed_dt, set_proposed_dt!, terminate!, remake
+                   get_proposed_dt, set_proposed_dt!, terminate!, remake,
+                   @muladd
 using CodeTracking: code_string
 @reexport using EllipsisNotation # ..
 import ForwardDiff
