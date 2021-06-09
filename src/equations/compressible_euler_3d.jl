@@ -680,7 +680,7 @@ See also
   velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
 
   # Calculate fluxes depending on orientation
-  if orientation == 1
+  @fastmath if orientation == 1
     f1 = rho_mean * v1_avg
     f2 = f1 * v1_avg + p_avg
     f3 = f1 * v2_avg
