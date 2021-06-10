@@ -1,3 +1,7 @@
+# By default, Julia/LLVM does not use FMAs. Hence, we need to opt-in explicitly.
+# See TODO: link-to-my-blog-post
+@muladd begin
+
 
 # Container data structure (structure-of-arrays style) for DG elements
 # TODO: Taal refactor, remove NVARS, POLYDEG?
@@ -838,3 +842,5 @@ function init_mpi_interfaces!(mpi_interfaces, elements, mesh::TreeMesh2D)
                                                    * "expectations $(nmpiinterfaces(mpi_interfaces))")
 end
 
+
+end # @muladd

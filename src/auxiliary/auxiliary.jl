@@ -1,3 +1,8 @@
+# By default, Julia/LLVM does not use FMAs. Hence, we need to opt-in explicitly.
+# See TODO: link-to-my-blog-post
+@muladd begin
+
+
 include("containers.jl")
 include("math.jl")
 
@@ -212,3 +217,6 @@ macro timed(timer_output, label, expr)
     val
   end
 end
+
+
+end # @muladd

@@ -1,3 +1,8 @@
+# By default, Julia/LLVM does not use FMAs. Hence, we need to opt-in explicitly.
+# See TODO: link-to-my-blog-post
+@muladd begin
+
+
 include("abstract_tree.jl")
 include("serial_tree.jl")
 include("parallel_tree.jl")
@@ -206,3 +211,6 @@ include("curved_mesh.jl")
 include("surface_interpolant.jl")
 include("unstructured_quad_mesh.jl")
 include("mesh_io.jl")
+
+
+end # @muladd

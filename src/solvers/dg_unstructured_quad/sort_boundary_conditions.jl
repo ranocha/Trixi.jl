@@ -1,3 +1,8 @@
+# By default, Julia/LLVM does not use FMAs. Hence, we need to opt-in explicitly.
+# See TODO: link-to-my-blog-post
+@muladd begin
+
+
 """
     UnstructuredQuadSortedBoundaryTypes{N, BCs<:NTuple{N, Any}}
 
@@ -48,3 +53,6 @@ function UnstructuredQuadSortedBoundaryTypes(boundary_conditions::Dict, cache)
                                                                          boundary_indices,
                                                                          boundary_dictionary)
 end
+
+
+end # @muladd
