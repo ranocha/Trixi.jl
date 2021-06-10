@@ -176,7 +176,7 @@ function Base.show(io::IO, mime::MIME"text/plain", dg::DG)
   end
 end
 
-@inline Base.real(dg::DG) = real(dg.basis) 
+@inline Base.real(dg::DG) = real(dg.basis)
 
 # TODO: Taal refactor, use case?
 # Deprecate in favor of nnodes or order_of_accuracy?
@@ -246,6 +246,13 @@ end
 @inline function add_to_node_vars!(u, u_node, equations, solver::DG, indices...)
   for v in eachvariable(equations)
     u[v, indices...] += u_node[v]
+  end
+  return nothing
+end
+
+@muladd @inline function add_to_node_vars!(u, factor, u_node, equations, solver::DG, indices...)
+  for v in eachvariable(equations)
+    u[v, indices...] = u[v, indices...] + factor * u_node[v]
   end
   return nothing
 end
