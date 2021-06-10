@@ -35,11 +35,12 @@ function rhs!(du, u, t,
 end
 
 
-function calc_volume_integral!(du, u,
-                               mesh::Union{CurvedMesh{2}, UnstructuredQuadMesh},
-                               nonconservative_terms::Val{false}, equations,
-                               volume_integral::VolumeIntegralWeakForm,
-                               dg::DGSEM, cache)
+@muladd function calc_volume_integral!(
+    du, u,
+    mesh::Union{CurvedMesh{2}, UnstructuredQuadMesh},
+    nonconservative_terms::Val{false}, equations,
+    volume_integral::VolumeIntegralWeakForm,
+    dg::DGSEM, cache)
   @unpack derivative_dhat = dg.basis
   @unpack contravariant_vectors = cache.elements
 
@@ -54,20 +55,16 @@ function calc_volume_integral!(du, u,
       # first contravariant vector Ja^1 and the flux vector
       Ja11, Ja12 = get_contravariant_vector(1, contravariant_vectors, i, j, element)
       contravariant_flux1 = Ja11 * flux1 + Ja12 * flux2
-
       for ii in eachnode(dg)
-        integral_contribution = derivative_dhat[ii, i] * contravariant_flux1
-        add_to_node_vars!(du, integral_contribution, equations, dg, ii, j, element)
+        add_to_node_vars!(du, derivative_dhat[ii, i], contravariant_flux1, equations, dg, ii, j, element)
       end
 
       # Compute the contravariant flux by taking the scalar product of the
       # second contravariant vector Ja^2 and the flux vector
       Ja21, Ja22 = get_contravariant_vector(2, contravariant_vectors, i, j, element)
       contravariant_flux2 = Ja21 * flux1 + Ja22 * flux2
-
       for jj in eachnode(dg)
-        integral_contribution = derivative_dhat[jj, j] * contravariant_flux2
-        add_to_node_vars!(du, integral_contribution, equations, dg, i, jj, element)
+        add_to_node_vars!(du, derivative_dhat[jj, j], contravariant_flux2, equations, dg, i, jj, element)
       end
     end
   end
@@ -120,8 +117,8 @@ end
       u_ll = get_node_vars(u, equations, dg, nnodes(dg), i, left_element)
       u_rr = get_node_vars(u, equations, dg, 1,          i, right_element)
 
-      # If the mapping is orientation-reversing, the contravariant vectors' orientation 
-      # is reversed as well. The normal vector must be oriented in the direction 
+      # If the mapping is orientation-reversing, the contravariant vectors' orientation
+      # is reversed as well. The normal vector must be oriented in the direction
       # from `left_element` to `right_element`, or the numerical flux will be computed
       # incorrectly (downwind direction).
       sign_jacobian = sign(inverse_jacobian[1, i, right_element])
