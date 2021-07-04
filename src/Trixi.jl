@@ -110,6 +110,8 @@ include("auxiliary/special_elixirs.jl")
 # Plot recipes and conversion functions to visualize results with Plots.jl
 include("visualization/visualization.jl")
 
+include("performance_hacks/tree_3d_dg_euler.jl")
+
 # export types/functions that define the public API of Trixi
 
 export AcousticPerturbationEquations2D,
