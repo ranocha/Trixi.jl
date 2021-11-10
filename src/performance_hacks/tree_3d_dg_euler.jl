@@ -10,17 +10,29 @@ redirect_stdout(devnull) do
 end
 
 u_ode = copy(sol.u[end]); du_ode = similar(u_ode);
-u = Trixi.wrap_array(u_ode, semi); du = Trixi.wrap_array(du_ode, semi);
+# LoopVectorization.jl takes forever to compile the flux differencing kernels
+# if it needs to specialize for high polynomial degrees at compile time,
+# e.g., `polydeg = 7`
+# u = Trixi.wrap_array(u_ode, semi); du = Trixi.wrap_array(du_ode, semi);
+u = PtrArray(pointer(u_ode), (nvariables(equations), ntuple(_ -> nnodes(solver), ndims(mesh))...,
+  nelements(solver, semi.cache)));
+du = PtrArray(pointer(du_ode), (nvariables(equations), ntuple(_ -> nnodes(solver), ndims(mesh))...,
+  nelements(solver, semi.cache)));
 Trixi.rhs!(du_ode, u_ode, semi, 0.0)
 
 u_aos_ode = reinterpret(SVector{nvariables(equations), eltype(u_ode)}, u_ode);
-u_soa_ode = StructArray(u_aos_ode);
+u_soa_ode = StructArray(u_aos_ode); du_soa_ode = copy(u_soa_ode);
+# u_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
+#   map(u_ode -> PtrArray(pointer(u_ode), (ntuple(_ -> StaticInt(nnodes(solver)), ndims(mesh))...,
+#     nelements(solver, semi.cache))), StructArrays.components(u_soa_ode)));
+# du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
+#   map(u_ode -> PtrArray(pointer(u_ode), (ntuple(_ -> StaticInt(nnodes(solver)), ndims(mesh))...,
+#     nelements(solver, semi.cache))), StructArrays.components(du_soa_ode)));
 u_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
-  map(u_ode -> PtrArray(pointer(u_ode), (ntuple(_ -> StaticInt(nnodes(solver)), ndims(mesh))...,
+  map(u_ode -> PtrArray(pointer(u_ode), (ntuple(_ -> nnodes(solver), ndims(mesh))...,
     nelements(solver, semi.cache))), StructArrays.components(u_soa_ode)));
-du_soa_ode = copy(u_soa_ode);
 du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
-  map(u_ode -> PtrArray(pointer(u_ode), (ntuple(_ -> StaticInt(nnodes(solver)), ndims(mesh))...,
+  map(u_ode -> PtrArray(pointer(u_ode), (ntuple(_ -> nnodes(solver), ndims(mesh))...,
     nelements(solver, semi.cache))), StructArrays.components(du_soa_ode)));
 
 @benchmark Trixi.split_form_kernel!(
