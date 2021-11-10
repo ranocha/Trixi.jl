@@ -11,7 +11,8 @@
   @unpack derivative_split = dg.basis
 
   # x direction
-  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -24,7 +25,8 @@
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
 
-    for ii in eachnode(dg)
+    # for ii in eachnode(dg)
+    for ii in indices(u, 2)
       rho_rr    = u[1, ii, j, k, element]
       rho_v1_rr = u[2, ii, j, k, element]
       rho_v2_rr = u[3, ii, j, k, element]
@@ -62,7 +64,8 @@
   end
 
   # y direction
-  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -75,7 +78,8 @@
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
 
-    for jj in eachnode(dg)
+    # for jj in eachnode(dg)
+    for jj in indices(u, 3)
       rho_rr    = u[1, i, jj, k, element]
       rho_v1_rr = u[2, i, jj, k, element]
       rho_v2_rr = u[3, i, jj, k, element]
@@ -113,7 +117,8 @@
   end
 
   # z direction
-  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -126,7 +131,8 @@
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
 
-    for kk in eachnode(dg)
+    # for kk in eachnode(dg)
+    for kk in indices(u, 4)
       rho_rr    = u[1, i, j, kk, element]
       rho_v1_rr = u[2, i, j, kk, element]
       rho_v2_rr = u[3, i, j, kk, element]
