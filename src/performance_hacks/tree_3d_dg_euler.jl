@@ -1,11 +1,11 @@
 
-@inline function split_form_kernel!(du::AbstractArray{<:Any,5}, u,
-                                    nonconservative_terms::Val{false}, element,
-                                    mesh::TreeMesh{3},
-                                    equations::CompressibleEulerEquations3D,
-                                    volume_flux::typeof(flux_shima_etal),
-                                    dg::DGSEM, cache,
-                                    alpha=true)
+@inline function flux_differencing_kernel!(du::AbstractArray{<:Any,5}, u,
+                                           element, mesh::TreeMesh{3},
+                                           nonconservative_terms::Val{false},
+                                           equations::CompressibleEulerEquations3D,
+                                           volume_flux::typeof(flux_shima_etal),
+                                           dg::DGSEM, cache,
+                                           alpha=true)
   # true * [some floating point value] == [exactly the same floating point value]
   # This can (hopefully) be optimized away due to constant propagation.
   @unpack derivative_split = dg.basis
@@ -62,7 +62,7 @@
   end
 
   # y direction
-  for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -113,7 +113,7 @@
   end
 
   # z direction
-  for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
