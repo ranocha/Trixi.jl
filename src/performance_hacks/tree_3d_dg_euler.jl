@@ -62,11 +62,12 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
                                            alpha=true)
   # true * [some floating point value] == [exactly the same floating point value]
   # This can (hopefully) be optimized away due to constant propagation.
-  @unpack derivative_split = dg.basis
+  @unpack derivative_split, derivative_split_transpose = dg.basis
 
   # x direction
   # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
-  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du, derivative_split), (2, 2, 1))
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -86,7 +87,8 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     du_5 = zero(eltype(du))
 
     # for ii in eachnode(dg)
-    for ii in indices(u, 2)
+    # for ii in indices(u, 2,)
+    for ii in indices((u, derivative_split), (2, 2))
       rho_rr    = u[1, ii, j, k, element]
       rho_v1_rr = u[2, ii, j, k, element]
       rho_v2_rr = u[3, ii, j, k, element]
@@ -115,6 +117,7 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
 
       factor = alpha * derivative_split[i, ii]
+      # factor = alpha * derivative_split_transpose[ii, i]
       du_1 += factor * f1
       du_2 += factor * f2
       du_3 += factor * f3
@@ -131,7 +134,8 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
 
   # y direction
   # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
-  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  @turbo for k in indices((u, du), 4), j in indices((u, du, derivative_split), (3, 3, 1)), i in indices((u, du), 2)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -151,7 +155,8 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     du_5 = zero(eltype(du))
 
     # for jj in eachnode(dg)
-    for jj in indices(u, 3)
+    # for jj in indices(u, 3)
+    for jj in indices((u, derivative_split), (3, 2))
       rho_rr    = u[1, i, jj, k, element]
       rho_v1_rr = u[2, i, jj, k, element]
       rho_v2_rr = u[3, i, jj, k, element]
@@ -180,6 +185,7 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
 
       factor = alpha * derivative_split[j, jj]
+      # factor = alpha * derivative_split_transpose[jj, j]
       du_1 += factor * f1
       du_2 += factor * f2
       du_3 += factor * f3
@@ -196,7 +202,8 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
 
   # z direction
   # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
-  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  @turbo for k in indices((u, du, derivative_split), (4, 4, 1)), j in indices((u, du), 3), i in indices((u, du), 2)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -216,7 +223,8 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     du_5 = zero(eltype(du))
 
     # for kk in eachnode(dg)
-    for kk in indices(u, 4)
+    # for kk in indices(u, 4)
+    for kk in indices((u, derivative_split), (4, 2))
       rho_rr    = u[1, i, j, kk, element]
       rho_v1_rr = u[2, i, j, kk, element]
       rho_v2_rr = u[3, i, j, kk, element]
@@ -245,6 +253,7 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
 
       factor = alpha * derivative_split[k, kk]
+      # factor = alpha * derivative_split_transpose[kk, k]
       du_1 += factor * f1
       du_2 += factor * f2
       du_3 += factor * f3
