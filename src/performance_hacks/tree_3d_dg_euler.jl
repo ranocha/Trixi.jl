@@ -79,6 +79,12 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
 
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
+
     # for ii in eachnode(dg)
     for ii in indices(u, 2)
       rho_rr    = u[1, ii, j, k, element]
@@ -109,12 +115,18 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + rho_avg * v1_avg * kin_avg + pv1_avg
 
       factor = alpha * derivative_split[i, ii]
-      du[1, i, j, k, element] += factor * f1
-      du[2, i, j, k, element] += factor * f2
-      du[3, i, j, k, element] += factor * f3
-      du[4, i, j, k, element] += factor * f4
-      du[5, i, j, k, element] += factor * f5
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
     end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
   end
 
   # y direction
@@ -131,6 +143,12 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     v3_ll = rho_v3_ll / rho_ll
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
 
     # for jj in eachnode(dg)
     for jj in indices(u, 3)
@@ -162,12 +180,18 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + rho_avg*v2_avg*kin_avg + pv2_avg
 
       factor = alpha * derivative_split[j, jj]
-      du[1, i, j, k, element] += factor * f1
-      du[2, i, j, k, element] += factor * f2
-      du[3, i, j, k, element] += factor * f3
-      du[4, i, j, k, element] += factor * f4
-      du[5, i, j, k, element] += factor * f5
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
     end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
   end
 
   # z direction
@@ -184,6 +208,12 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     v3_ll = rho_v3_ll / rho_ll
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
 
     # for kk in eachnode(dg)
     for kk in indices(u, 4)
@@ -215,12 +245,18 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + rho_avg*v3_avg*kin_avg + pv3_avg
 
       factor = alpha * derivative_split[k, kk]
-      du[1, i, j, k, element] += factor * f1
-      du[2, i, j, k, element] += factor * f2
-      du[3, i, j, k, element] += factor * f3
-      du[4, i, j, k, element] += factor * f4
-      du[5, i, j, k, element] += factor * f5
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
     end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
   end
 end
 
