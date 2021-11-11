@@ -65,9 +65,9 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
   @unpack derivative_split, derivative_split_transpose = dg.basis
 
   # x direction
-  # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
   # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
-  @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du, derivative_split), (2, 2, 1))
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du, derivative_split), (2, 2, 1))
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -86,9 +86,9 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     du_4 = zero(eltype(du))
     du_5 = zero(eltype(du))
 
-    # for ii in eachnode(dg)
+    for ii in eachnode(dg)
     # for ii in indices(u, 2,)
-    for ii in indices((u, derivative_split), (2, 2))
+    # for ii in indices((u, derivative_split), (2, 2))
       rho_rr    = u[1, ii, j, k, element]
       rho_v1_rr = u[2, ii, j, k, element]
       rho_v2_rr = u[3, ii, j, k, element]
@@ -133,9 +133,9 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
   end
 
   # y direction
-  # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
   # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
-  @turbo for k in indices((u, du), 4), j in indices((u, du, derivative_split), (3, 3, 1)), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du, derivative_split), (3, 3, 1)), i in indices((u, du), 2)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -154,9 +154,9 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     du_4 = zero(eltype(du))
     du_5 = zero(eltype(du))
 
-    # for jj in eachnode(dg)
+    for jj in eachnode(dg)
     # for jj in indices(u, 3)
-    for jj in indices((u, derivative_split), (3, 2))
+    # for jj in indices((u, derivative_split), (3, 2))
       rho_rr    = u[1, i, jj, k, element]
       rho_v1_rr = u[2, i, jj, k, element]
       rho_v2_rr = u[3, i, jj, k, element]
@@ -201,9 +201,9 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
   end
 
   # z direction
-  # @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
   # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
-  @turbo for k in indices((u, du, derivative_split), (4, 4, 1)), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du, derivative_split), (4, 4, 1)), j in indices((u, du), 3), i in indices((u, du), 2)
     rho_ll    = u[1, i, j, k, element]
     rho_v1_ll = u[2, i, j, k, element]
     rho_v2_ll = u[3, i, j, k, element]
@@ -222,9 +222,9 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
     du_4 = zero(eltype(du))
     du_5 = zero(eltype(du))
 
-    # for kk in eachnode(dg)
+    for kk in eachnode(dg)
     # for kk in indices(u, 4)
-    for kk in indices((u, derivative_split), (4, 2))
+    # for kk in indices((u, derivative_split), (4, 2))
       rho_rr    = u[1, i, j, kk, element]
       rho_v1_rr = u[2, i, j, kk, element]
       rho_v2_rr = u[3, i, j, kk, element]
