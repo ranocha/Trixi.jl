@@ -105,14 +105,14 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       v2_avg  = 0.5 * ( v2_ll +  v2_rr)
       v3_avg  = 0.5 * ( v3_ll +  v3_rr)
       p_avg   = 0.5 * (  p_ll +   p_rr)
-      kin_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
-
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
       pv1_avg = 0.5 * (p_ll * v1_rr + p_rr * v1_ll)
+
       f1 = rho_avg * v1_avg
-      f2 = rho_avg * v1_avg * v1_avg + p_avg
-      f3 = rho_avg * v1_avg * v2_avg
-      f4 = rho_avg * v1_avg * v3_avg
-      f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + rho_avg * v1_avg * kin_avg + pv1_avg
+      f2 = f1 * v1_avg + p_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg
+      f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
 
       factor = alpha * derivative_split[i, ii]
       du_1 += factor * f1
@@ -170,14 +170,14 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       v2_avg  = 0.5 * ( v2_ll +  v2_rr)
       v3_avg  = 0.5 * ( v3_ll +  v3_rr)
       p_avg   = 0.5 * (  p_ll +   p_rr)
-      kin_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+      pv2_avg = 0.5 * (p_ll * v2_rr + p_rr * v2_ll)
 
-      pv2_avg = 0.5 * (p_ll*v2_rr + p_rr*v2_ll)
       f1 = rho_avg * v2_avg
-      f2 = rho_avg * v2_avg * v1_avg
-      f3 = rho_avg * v2_avg * v2_avg + p_avg
-      f4 = rho_avg * v2_avg * v3_avg
-      f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + rho_avg*v2_avg*kin_avg + pv2_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg + p_avg
+      f4 = f1 * v3_avg
+      f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
 
       factor = alpha * derivative_split[j, jj]
       du_1 += factor * f1
@@ -235,14 +235,14 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
       v2_avg  = 0.5 * ( v2_ll +  v2_rr)
       v3_avg  = 0.5 * ( v3_ll +  v3_rr)
       p_avg   = 0.5 * (  p_ll +   p_rr)
-      kin_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+      pv3_avg = 0.5 * (p_ll * v3_rr + p_rr * v3_ll)
 
-      pv3_avg = 0.5 * (p_ll*v3_rr + p_rr*v3_ll)
       f1 = rho_avg * v3_avg
-      f2 = rho_avg * v3_avg * v1_avg
-      f3 = rho_avg * v3_avg * v2_avg
-      f4 = rho_avg * v3_avg * v3_avg + p_avg
-      f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + rho_avg*v3_avg*kin_avg + pv3_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg + p_avg
+      f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
 
       factor = alpha * derivative_split[k, kk]
       du_1 += factor * f1
@@ -295,6 +295,12 @@ end
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
 
+    du_1 = zero(eltype(du_rho))
+    du_2 = zero(eltype(du_rho_v1))
+    du_3 = zero(eltype(du_rho_v2))
+    du_4 = zero(eltype(du_rho_v3))
+    du_5 = zero(eltype(du_rho_e))
+
     # for ii in eachnode(dg)
     for ii in indices((u_rho, u_rho_v1, u_rho_v2, u_rho_v3, u_rho_e), 1)
       rho_rr    = u_rho[   ii, j, k, element]
@@ -315,22 +321,28 @@ end
       v2_avg  = 0.5 * ( v2_ll +  v2_rr)
       v3_avg  = 0.5 * ( v3_ll +  v3_rr)
       p_avg   = 0.5 * (  p_ll +   p_rr)
-      kin_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
-
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
       pv1_avg = 0.5 * (p_ll * v1_rr + p_rr * v1_ll)
+
       f1 = rho_avg * v1_avg
-      f2 = rho_avg * v1_avg * v1_avg + p_avg
-      f3 = rho_avg * v1_avg * v2_avg
-      f4 = rho_avg * v1_avg * v3_avg
-      f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + rho_avg * v1_avg * kin_avg + pv1_avg
+      f2 = f1 * v1_avg + p_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg
+      f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
 
       factor = alpha * derivative_split[i, ii]
-      du_rho[   i, j, k, element] += factor * f1
-      du_rho_v1[i, j, k, element] += factor * f2
-      du_rho_v2[i, j, k, element] += factor * f3
-      du_rho_v3[i, j, k, element] += factor * f4
-      du_rho_e[ i, j, k, element] += factor * f5
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
     end
+
+    du_rho[   i, j, k, element] += du_1
+    du_rho_v1[i, j, k, element] += du_2
+    du_rho_v2[i, j, k, element] += du_3
+    du_rho_v3[i, j, k, element] += du_4
+    du_rho_e[ i, j, k, element] += du_5
   end
 
   # y direction
@@ -353,6 +365,12 @@ end
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
 
+    du_1 = zero(eltype(du_rho))
+    du_2 = zero(eltype(du_rho_v1))
+    du_3 = zero(eltype(du_rho_v2))
+    du_4 = zero(eltype(du_rho_v3))
+    du_5 = zero(eltype(du_rho_e))
+
     # for jj in eachnode(dg)
     for jj in indices((u_rho, u_rho_v1, u_rho_v2, u_rho_v3, u_rho_e), 2)
       rho_rr    = u_rho[   i, jj, k, element]
@@ -373,22 +391,28 @@ end
       v2_avg  = 0.5 * ( v2_ll +  v2_rr)
       v3_avg  = 0.5 * ( v3_ll +  v3_rr)
       p_avg   = 0.5 * (  p_ll +   p_rr)
-      kin_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+      pv2_avg = 0.5 * (p_ll * v2_rr + p_rr * v2_ll)
 
-      pv2_avg = 0.5 * (p_ll*v2_rr + p_rr*v2_ll)
       f1 = rho_avg * v2_avg
-      f2 = rho_avg * v2_avg * v1_avg
-      f3 = rho_avg * v2_avg * v2_avg + p_avg
-      f4 = rho_avg * v2_avg * v3_avg
-      f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + rho_avg*v2_avg*kin_avg + pv2_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg + p_avg
+      f4 = f1 * v3_avg
+      f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
 
       factor = alpha * derivative_split[j, jj]
-      du_rho[   i, j, k, element] += factor * f1
-      du_rho_v1[i, j, k, element] += factor * f2
-      du_rho_v2[i, j, k, element] += factor * f3
-      du_rho_v3[i, j, k, element] += factor * f4
-      du_rho_e[ i, j, k, element] += factor * f5
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
     end
+
+    du_rho[   i, j, k, element] += du_1
+    du_rho_v1[i, j, k, element] += du_2
+    du_rho_v2[i, j, k, element] += du_3
+    du_rho_v3[i, j, k, element] += du_4
+    du_rho_e[ i, j, k, element] += du_5
   end
 
   # z direction
@@ -411,6 +435,12 @@ end
     p_ll  = (equations.gamma - 1) * (
       rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
 
+    du_1 = zero(eltype(du_rho))
+    du_2 = zero(eltype(du_rho_v1))
+    du_3 = zero(eltype(du_rho_v2))
+    du_4 = zero(eltype(du_rho_v3))
+    du_5 = zero(eltype(du_rho_e))
+
     # for kk in eachnode(dg)
     for kk in indices((u_rho, u_rho_v1, u_rho_v2, u_rho_v3, u_rho_e), 3)
       rho_rr    = u_rho[   i, j, kk, element]
@@ -431,21 +461,27 @@ end
       v2_avg  = 0.5 * ( v2_ll +  v2_rr)
       v3_avg  = 0.5 * ( v3_ll +  v3_rr)
       p_avg   = 0.5 * (  p_ll +   p_rr)
-      kin_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+      pv3_avg = 0.5 * (p_ll * v3_rr + p_rr * v3_ll)
 
-      pv3_avg = 0.5 * (p_ll*v3_rr + p_rr*v3_ll)
       f1 = rho_avg * v3_avg
-      f2 = rho_avg * v3_avg * v1_avg
-      f3 = rho_avg * v3_avg * v2_avg
-      f4 = rho_avg * v3_avg * v3_avg + p_avg
-      f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + rho_avg*v3_avg*kin_avg + pv3_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg + p_avg
+      f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
 
       factor = alpha * derivative_split[k, kk]
-      du_rho[   i, j, k, element] += factor * f1
-      du_rho_v1[i, j, k, element] += factor * f2
-      du_rho_v2[i, j, k, element] += factor * f3
-      du_rho_v3[i, j, k, element] += factor * f4
-      du_rho_e[ i, j, k, element] += factor * f5
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
     end
+
+    du_rho[   i, j, k, element] += du_1
+    du_rho_v1[i, j, k, element] += du_2
+    du_rho_v2[i, j, k, element] += du_3
+    du_rho_v3[i, j, k, element] += du_4
+    du_rho_e[ i, j, k, element] += du_5
   end
 end
