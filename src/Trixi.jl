@@ -48,7 +48,7 @@ using P4est
 using Setfield: @set
 using RecipesBase: RecipesBase
 using Requires: @require
-using Static: One
+using Static: Static, One
 @reexport using StaticArrays: SVector
 using StaticArrays: MVector, MArray, SMatrix
 using StrideArrays: PtrArray, StrideArray, StaticInt
