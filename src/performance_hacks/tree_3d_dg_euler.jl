@@ -739,6 +739,375 @@ end
 end
 
 
+# pre-compute primitive variables and uses triangular loops without turbo
+# after permuting the memory layout
+@inline function flux_differencing_kernel_permuted!(_du, u_cons,
+                                                    element, mesh::TreeMesh{3},
+                                                    nonconservative_terms::Val{false},
+                                                    equations::CompressibleEulerEquations3D,
+                                                    volume_flux::typeof(flux_shima_etal),
+                                                    dg::DGSEM, cache,
+                                                    alpha=true)
+  # true * [some floating point value] == [exactly the same floating point value]
+  # This can (hopefully) be optimized away due to constant propagation.
+  @unpack derivative_split, derivative_split_transpose = dg.basis
+
+  # u_prim = PtrArray(pointer(_u_prim),
+  #                   (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
+  #                   StaticInt(nvariables(equations)),
+  #                   nelements(dg, cache)))
+  u_prim = StrideArray{eltype(u_cons)}(undef,
+    (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
+    StaticInt(nvariables(equations))))
+
+  du = StrideArray{eltype(u_cons)}(undef,
+    (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
+    StaticInt(nvariables(equations))))
+
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+    rho    = u_cons[1, i, j, k, element]
+    rho_v1 = u_cons[2, i, j, k, element]
+    rho_v2 = u_cons[3, i, j, k, element]
+    rho_v3 = u_cons[4, i, j, k, element]
+    rho_e  = u_cons[5, i, j, k, element]
+
+    v1 = rho_v1 / rho
+    v2 = rho_v2 / rho
+    v3 = rho_v3 / rho
+    p = (equations.gamma - 1) * (rho_e - 0.5 * (rho_v1 * v1 + rho_v2 * v2 + rho_v3 * v3))
+
+    u_prim[i, j, k, 1] = rho
+    u_prim[i, j, k, 2] = v1
+    u_prim[i, j, k, 3] = v2
+    u_prim[i, j, k, 4] = v3
+    u_prim[i, j, k, 5] = p
+  end
+
+  # x direction
+  # fill!(du, zero(eltype(du)))
+  # for i in eachnode(dg), ii in (i+1):nnodes(dg)
+  #   @turbo for k in eachnode(dg), j in eachnode(dg)
+  #     rho_ll = u_prim[i, j, k, 1]
+  #     v1_ll  = u_prim[i, j, k, 2]
+  #     v2_ll  = u_prim[i, j, k, 3]
+  #     v3_ll  = u_prim[i, j, k, 4]
+  #     p_ll   = u_prim[i, j, k, 5]
+
+  #     rho_rr = u_prim[ii, j, k, 1]
+  #     v1_rr  = u_prim[ii, j, k, 2]
+  #     v2_rr  = u_prim[ii, j, k, 3]
+  #     v3_rr  = u_prim[ii, j, k, 4]
+  #     p_rr   = u_prim[ii, j, k, 5]
+
+  #     # Average each factor of products in flux
+  #     rho_avg = 0.5 * (rho_ll + rho_rr)
+  #     v1_avg  = 0.5 * ( v1_ll +  v1_rr)
+  #     v2_avg  = 0.5 * ( v2_ll +  v2_rr)
+  #     v3_avg  = 0.5 * ( v3_ll +  v3_rr)
+  #     p_avg   = 0.5 * (  p_ll +   p_rr)
+  #     kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+  #     pv1_avg = 0.5 * (p_ll * v1_rr + p_rr * v1_ll)
+
+  #     f1 = rho_avg * v1_avg
+  #     f2 = f1 * v1_avg + p_avg
+  #     f3 = f1 * v2_avg
+  #     f4 = f1 * v3_avg
+  #     f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
+
+  #     factor = alpha * derivative_split[i, ii]
+  #     du[i, j, k, 1] += factor * f1
+  #     du[i, j, k, 2] += factor * f2
+  #     du[i, j, k, 3] += factor * f3
+  #     du[i, j, k, 4] += factor * f4
+  #     du[i, j, k, 5] += factor * f5
+
+  #     factor = alpha * derivative_split[ii, i]
+  #     du[ii, j, k, 1] += factor * f1
+  #     du[ii, j, k, 2] += factor * f2
+  #     du[ii, j, k, 3] += factor * f3
+  #     du[ii, j, k, 4] += factor * f4
+  #     du[ii, j, k, 5] += factor * f5
+  #   end
+  # end
+
+
+  du_permuted = StrideArray{eltype(u_cons)}(undef,
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+    StaticInt(nvariables(equations))))
+
+  u_prim_permuted = StrideArray{eltype(u_cons)}(undef,
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+    StaticInt(nvariables(equations))))
+
+  @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+    jk = j + nnodes(dg) * (k- 1)
+    u_prim_permuted[jk, i, v] = u_prim[i, j, k, v]
+  end
+  fill!(du_permuted, zero(eltype(du_permuted)))
+
+  for i in eachnode(dg), ii in (i+1):nnodes(dg)
+    @turbo for jk in Base.OneTo(nnodes(dg)^2)
+      rho_ll = u_prim_permuted[jk, i, 1]
+      v1_ll  = u_prim_permuted[jk, i, 2]
+      v2_ll  = u_prim_permuted[jk, i, 3]
+      v3_ll  = u_prim_permuted[jk, i, 4]
+      p_ll   = u_prim_permuted[jk, i, 5]
+
+      rho_rr = u_prim_permuted[jk, ii, 1]
+      v1_rr  = u_prim_permuted[jk, ii, 2]
+      v2_rr  = u_prim_permuted[jk, ii, 3]
+      v3_rr  = u_prim_permuted[jk, ii, 4]
+      p_rr   = u_prim_permuted[jk, ii, 5]
+
+      # Average each factor of products in flux
+      rho_avg = 0.5 * (rho_ll + rho_rr)
+      v1_avg  = 0.5 * ( v1_ll +  v1_rr)
+      v2_avg  = 0.5 * ( v2_ll +  v2_rr)
+      v3_avg  = 0.5 * ( v3_ll +  v3_rr)
+      p_avg   = 0.5 * (  p_ll +   p_rr)
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+      pv1_avg = 0.5 * (p_ll * v1_rr + p_rr * v1_ll)
+
+      f1 = rho_avg * v1_avg
+      f2 = f1 * v1_avg + p_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg
+      f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
+
+      factor = alpha * derivative_split[i, ii]
+      du_permuted[jk, i, 1] += factor * f1
+      du_permuted[jk, i, 2] += factor * f2
+      du_permuted[jk, i, 3] += factor * f3
+      du_permuted[jk, i, 4] += factor * f4
+      du_permuted[jk, i, 5] += factor * f5
+
+      factor = alpha * derivative_split[ii, i]
+      du_permuted[jk, ii, 1] += factor * f1
+      du_permuted[jk, ii, 2] += factor * f2
+      du_permuted[jk, ii, 3] += factor * f3
+      du_permuted[jk, ii, 4] += factor * f4
+      du_permuted[jk, ii, 5] += factor * f5
+    end
+  end
+
+  @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+    jk = j + nnodes(dg) * (k- 1)
+    du[i, j, k, v] = du_permuted[jk, i, v]
+  end
+
+
+  # y direction
+  for j in eachnode(dg), jj in (j+1):nnodes(dg)
+    @turbo for k in eachnode(dg), i in eachnode(dg)
+      rho_ll = u_prim[i, j, k, 1]
+      v1_ll  = u_prim[i, j, k, 2]
+      v2_ll  = u_prim[i, j, k, 3]
+      v3_ll  = u_prim[i, j, k, 4]
+      p_ll   = u_prim[i, j, k, 5]
+
+      rho_rr = u_prim[i, jj, k, 1]
+      v1_rr  = u_prim[i, jj, k, 2]
+      v2_rr  = u_prim[i, jj, k, 3]
+      v3_rr  = u_prim[i, jj, k, 4]
+      p_rr   = u_prim[i, jj, k, 5]
+
+      # Average each factor of products in flux
+      rho_avg = 0.5 * (rho_ll + rho_rr)
+      v1_avg  = 0.5 * ( v1_ll +  v1_rr)
+      v2_avg  = 0.5 * ( v2_ll +  v2_rr)
+      v3_avg  = 0.5 * ( v3_ll +  v3_rr)
+      p_avg   = 0.5 * (  p_ll +   p_rr)
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+      pv2_avg = 0.5 * (p_ll * v2_rr + p_rr * v2_ll)
+
+      f1 = rho_avg * v2_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg + p_avg
+      f4 = f1 * v3_avg
+      f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
+
+      factor = alpha * derivative_split[j, jj]
+      du[i, j, k, 1] += factor * f1
+      du[i, j, k, 2] += factor * f2
+      du[i, j, k, 3] += factor * f3
+      du[i, j, k, 4] += factor * f4
+      du[i, j, k, 5] += factor * f5
+
+      factor = alpha * derivative_split[jj, j]
+      du[i, jj, k, 1] += factor * f1
+      du[i, jj, k, 2] += factor * f2
+      du[i, jj, k, 3] += factor * f3
+      du[i, jj, k, 4] += factor * f4
+      du[i, jj, k, 5] += factor * f5
+    end
+  end
+
+
+  # permuting appears to be more expensive than justified by possible gains
+  # @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  #   ik = i + nnodes(dg) * (k- 1)
+  #   u_prim_permuted[ik, j, v] = u_prim[i, j, k, v]
+  # end
+  # fill!(du_permuted, zero(eltype(du_permuted)))
+
+  # for j in eachnode(dg), jj in (j+1):nnodes(dg)
+  #   @turbo for ik in Base.OneTo(nnodes(dg)^2)
+  #     rho_ll = u_prim_permuted[ik, j, 1]
+  #     v1_ll  = u_prim_permuted[ik, j, 2]
+  #     v2_ll  = u_prim_permuted[ik, j, 3]
+  #     v3_ll  = u_prim_permuted[ik, j, 4]
+  #     p_ll   = u_prim_permuted[ik, j, 5]
+
+  #     rho_rr = u_prim_permuted[ik, jj, 1]
+  #     v1_rr  = u_prim_permuted[ik, jj, 2]
+  #     v2_rr  = u_prim_permuted[ik, jj, 3]
+  #     v3_rr  = u_prim_permuted[ik, jj, 4]
+  #     p_rr   = u_prim_permuted[ik, jj, 5]
+
+  #     # Average each factor of products in flux
+  #     rho_avg = 0.5 * (rho_ll + rho_rr)
+  #     v1_avg  = 0.5 * ( v1_ll +  v1_rr)
+  #     v2_avg  = 0.5 * ( v2_ll +  v2_rr)
+  #     v3_avg  = 0.5 * ( v3_ll +  v3_rr)
+  #     p_avg   = 0.5 * (  p_ll +   p_rr)
+  #     kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+  #     pv2_avg = 0.5 * (p_ll * v2_rr + p_rr * v2_ll)
+
+  #     f1 = rho_avg * v2_avg
+  #     f2 = f1 * v1_avg
+  #     f3 = f1 * v2_avg + p_avg
+  #     f4 = f1 * v3_avg
+  #     f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
+
+  #     factor = alpha * derivative_split[j, jj]
+  #     du_permuted[ik, j, 1] += factor * f1
+  #     du_permuted[ik, j, 2] += factor * f2
+  #     du_permuted[ik, j, 3] += factor * f3
+  #     du_permuted[ik, j, 4] += factor * f4
+  #     du_permuted[ik, j, 5] += factor * f5
+
+  #     factor = alpha * derivative_split[jj, j]
+  #     du_permuted[ik, jj, 1] += factor * f1
+  #     du_permuted[ik, jj, 2] += factor * f2
+  #     du_permuted[ik, jj, 3] += factor * f3
+  #     du_permuted[ik, jj, 4] += factor * f4
+  #     du_permuted[ik, jj, 5] += factor * f5
+  #   end
+  # end
+
+  # @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  #   ik = i + nnodes(dg) * (k- 1)
+  #   du[i, j, k, v] += du_permuted[ik, j, v]
+  # end
+
+
+  # z direction
+  # for k in eachnode(dg), kk in (k+1):nnodes(dg)
+  #   @turbo for j in eachnode(dg), i in eachnode(dg)
+  #     rho_ll = u_prim[i, j, k, 1]
+  #     v1_ll  = u_prim[i, j, k, 2]
+  #     v2_ll  = u_prim[i, j, k, 3]
+  #     v3_ll  = u_prim[i, j, k, 4]
+  #     p_ll   = u_prim[i, j, k, 5]
+
+  #     rho_rr = u_prim[i, j, kk, 1]
+  #     v1_rr  = u_prim[i, j, kk, 2]
+  #     v2_rr  = u_prim[i, j, kk, 3]
+  #     v3_rr  = u_prim[i, j, kk, 4]
+  #     p_rr   = u_prim[i, j, kk, 5]
+
+  #     # Average each factor of products in flux
+  #     rho_avg = 0.5 * (rho_ll + rho_rr)
+  #     v1_avg  = 0.5 * ( v1_ll +  v1_rr)
+  #     v2_avg  = 0.5 * ( v2_ll +  v2_rr)
+  #     v3_avg  = 0.5 * ( v3_ll +  v3_rr)
+  #     p_avg   = 0.5 * (  p_ll +   p_rr)
+  #     kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+  #     pv3_avg = 0.5 * (p_ll * v3_rr + p_rr * v3_ll)
+
+  #     f1 = rho_avg * v3_avg
+  #     f2 = f1 * v1_avg
+  #     f3 = f1 * v2_avg
+  #     f4 = f1 * v3_avg + p_avg
+  #     f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
+
+  #     factor = alpha * derivative_split[k, kk]
+  #     du[i, j, k, 1] += factor * f1
+  #     du[i, j, k, 2] += factor * f2
+  #     du[i, j, k, 3] += factor * f3
+  #     du[i, j, k, 4] += factor * f4
+  #     du[i, j, k, 5] += factor * f5
+
+  #     factor = alpha * derivative_split[kk, k]
+  #     du[i, j, kk, 1] += factor * f1
+  #     du[i, j, kk, 2] += factor * f2
+  #     du[i, j, kk, 3] += factor * f3
+  #     du[i, j, kk, 4] += factor * f4
+  #     du[i, j, kk, 5] += factor * f5
+  #   end
+  # end
+
+  u_prim_perm = PtrArray(pointer(u_prim),
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+     StaticInt(nvariables(equations))))
+  du_perm = PtrArray(pointer(du),
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+     StaticInt(nvariables(equations))))
+  for k in eachnode(dg), kk in (k+1):nnodes(dg)
+    @turbo for ij in Base.OneTo(nnodes(dg)^2)
+      rho_ll = u_prim_perm[ij, k, 1]
+      v1_ll  = u_prim_perm[ij, k, 2]
+      v2_ll  = u_prim_perm[ij, k, 3]
+      v3_ll  = u_prim_perm[ij, k, 4]
+      p_ll   = u_prim_perm[ij, k, 5]
+
+      rho_rr = u_prim_perm[ij, kk, 1]
+      v1_rr  = u_prim_perm[ij, kk, 2]
+      v2_rr  = u_prim_perm[ij, kk, 3]
+      v3_rr  = u_prim_perm[ij, kk, 4]
+      p_rr   = u_prim_perm[ij, kk, 5]
+
+      # Average each factor of products in flux
+      rho_avg = 0.5 * (rho_ll + rho_rr)
+      v1_avg  = 0.5 * ( v1_ll +  v1_rr)
+      v2_avg  = 0.5 * ( v2_ll +  v2_rr)
+      v3_avg  = 0.5 * ( v3_ll +  v3_rr)
+      p_avg   = 0.5 * (  p_ll +   p_rr)
+      kin_avg = 0.5 * (v1_ll * v1_rr + v2_ll * v2_rr + v3_ll * v3_rr)
+      pv3_avg = 0.5 * (p_ll * v3_rr + p_rr * v3_ll)
+
+      f1 = rho_avg * v3_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg + p_avg
+      f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
+
+      factor = alpha * derivative_split[k, kk]
+      du_perm[ij, k, 1] += factor * f1
+      du_perm[ij, k, 2] += factor * f2
+      du_perm[ij, k, 3] += factor * f3
+      du_perm[ij, k, 4] += factor * f4
+      du_perm[ij, k, 5] += factor * f5
+
+      factor = alpha * derivative_split[kk, k]
+      du_perm[ij, kk, 1] += factor * f1
+      du_perm[ij, kk, 2] += factor * f2
+      du_perm[ij, kk, 3] += factor * f3
+      du_perm[ij, kk, 4] += factor * f4
+      du_perm[ij, kk, 5] += factor * f5
+    end
+  end
+
+  @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for v in indices((_du, du), (1, 4)),
+  #            k in indices((_du, du), (4, 3)),
+  #            j in indices((_du, du), (3, 2)),
+  #            i in indices((_du, du), (2, 1))
+    _du[v, i, j, k, element] += du[i, j, k, v]
+  end
+end
+
+
 @inline function flux_differencing_kernel!(du::StructArray, u::StructArray,
                                            element, mesh::TreeMesh{3},
                                            nonconservative_terms::Val{false},

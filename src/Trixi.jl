@@ -38,7 +38,7 @@ using HDF5: h5open, attributes
 using IfElse: ifelse
 using LinearMaps: LinearMap
 using LoopVectorization: LoopVectorization, @turbo, indices
-using LoopVectorization.ArrayInterface: static_length
+using LoopVectorization.ArrayInterface: ArrayInterface, static_length
 using MPI: MPI
 using GeometryBasics: GeometryBasics
 using Octavian: Octavian, matmul!
