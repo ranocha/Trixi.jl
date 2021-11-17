@@ -1,3 +1,8 @@
+# TODO: This probably needs to live somewhere else.
+
+# The following code can be used for micro-benchmarks while developing this part.
+# Once everything is settled down, the new kernel should become a specialized
+# method of the old kernel, of course.
 
 #=
 using BenchmarkTools, StructArrays, StrideArrays
@@ -958,3 +963,475 @@ end
     du_rho_e[ i, j, k, element] += du_5
   end
 end
+
+
+
+
+
+
+################################################################################
+# flux_ranocha
+################################################################################
+
+
+# plain version
+@inline function flux_differencing_kernel!(du, u,
+                                           element, mesh::TreeMesh{3},
+                                           nonconservative_terms::Val{false},
+                                           equations::CompressibleEulerEquations3D,
+                                           volume_flux::typeof(flux_ranocha),
+                                           dg::DGSEM, cache,
+                                           alpha=true)
+  # true * [some floating point value] == [exactly the same floating point value]
+  # This can (hopefully) be optimized away due to constant propagation.
+  @unpack derivative_split, derivative_split_transpose = dg.basis
+
+  # x direction
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+    rho_ll    = u[1, i, j, k, element]
+    rho_v1_ll = u[2, i, j, k, element]
+    rho_v2_ll = u[3, i, j, k, element]
+    rho_v3_ll = u[4, i, j, k, element]
+    rho_e_ll  = u[5, i, j, k, element]
+
+    v1_ll = rho_v1_ll / rho_ll
+    v2_ll = rho_v2_ll / rho_ll
+    v3_ll = rho_v3_ll / rho_ll
+    p_ll  = (equations.gamma - 1) * (
+      rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
+
+    for ii in eachnode(dg)
+      rho_rr    = u[1, ii, j, k, element]
+      rho_v1_rr = u[2, ii, j, k, element]
+      rho_v2_rr = u[3, ii, j, k, element]
+      rho_v3_rr = u[4, ii, j, k, element]
+      rho_e_rr  = u[5, ii, j, k, element]
+
+      v1_rr = rho_v1_rr / rho_rr
+      v2_rr = rho_v2_rr / rho_rr
+      v3_rr = rho_v3_rr / rho_rr
+      p_rr  = (equations.gamma - 1) * (
+        rho_e_rr - 0.5 * (rho_v1_rr * v1_rr + rho_v2_rr * v2_rr + rho_v3_rr * v3_rr))
+
+      # Compute the necessary mean values
+      rho_mean = ln_mean(rho_ll, rho_rr)
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v1_avg
+      f2 = f1 * v1_avg + p_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v1_rr + p_rr*v1_ll)
+
+      factor = alpha * derivative_split[i, ii]
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
+    end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
+  end
+
+  # y direction
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du, derivative_split), (3, 3, 1)), i in indices((u, du), 2)
+    rho_ll    = u[1, i, j, k, element]
+    rho_v1_ll = u[2, i, j, k, element]
+    rho_v2_ll = u[3, i, j, k, element]
+    rho_v3_ll = u[4, i, j, k, element]
+    rho_e_ll  = u[5, i, j, k, element]
+
+    v1_ll = rho_v1_ll / rho_ll
+    v2_ll = rho_v2_ll / rho_ll
+    v3_ll = rho_v3_ll / rho_ll
+    p_ll  = (equations.gamma - 1) * (
+      rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
+
+    for jj in eachnode(dg)
+      rho_rr    = u[1, i, jj, k, element]
+      rho_v1_rr = u[2, i, jj, k, element]
+      rho_v2_rr = u[3, i, jj, k, element]
+      rho_v3_rr = u[4, i, jj, k, element]
+      rho_e_rr  = u[5, i, jj, k, element]
+
+      v1_rr = rho_v1_rr / rho_rr
+      v2_rr = rho_v2_rr / rho_rr
+      v3_rr = rho_v3_rr / rho_rr
+      p_rr  = (equations.gamma - 1) * (
+        rho_e_rr - 0.5 * (rho_v1_rr * v1_rr + rho_v2_rr * v2_rr + rho_v3_rr * v3_rr))
+
+      # Compute the necessary mean values
+      rho_mean = ln_mean(rho_ll, rho_rr)
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v2_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg + p_avg
+      f4 = f1 * v3_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v2_rr + p_rr*v2_ll)
+
+      factor = alpha * derivative_split[j, jj]
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
+    end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
+  end
+
+  # z direction
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du, derivative_split), (4, 4, 1)), j in indices((u, du), 3), i in indices((u, du), 2)
+    rho_ll    = u[1, i, j, k, element]
+    rho_v1_ll = u[2, i, j, k, element]
+    rho_v2_ll = u[3, i, j, k, element]
+    rho_v3_ll = u[4, i, j, k, element]
+    rho_e_ll  = u[5, i, j, k, element]
+
+    v1_ll = rho_v1_ll / rho_ll
+    v2_ll = rho_v2_ll / rho_ll
+    v3_ll = rho_v3_ll / rho_ll
+    p_ll  = (equations.gamma - 1) * (
+      rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
+
+    for kk in eachnode(dg)
+      rho_rr    = u[1, i, j, kk, element]
+      rho_v1_rr = u[2, i, j, kk, element]
+      rho_v2_rr = u[3, i, j, kk, element]
+      rho_v3_rr = u[4, i, j, kk, element]
+      rho_e_rr  = u[5, i, j, kk, element]
+
+      v1_rr = rho_v1_rr / rho_rr
+      v2_rr = rho_v2_rr / rho_rr
+      v3_rr = rho_v3_rr / rho_rr
+      p_rr  = (equations.gamma - 1) * (
+        rho_e_rr - 0.5 * (rho_v1_rr * v1_rr + rho_v2_rr * v2_rr + rho_v3_rr * v3_rr))
+
+      # Compute the necessary mean values
+      rho_mean = ln_mean(rho_ll, rho_rr)
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v3_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg + p_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v3_rr + p_rr*v3_ll)
+
+      factor = alpha * derivative_split[k, kk]
+      # factor = alpha * derivative_split_transpose[kk, k]
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
+    end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
+  end
+end
+
+# make LV aware of logmean, doesn't seem to help much
+@inline function flux_differencing_kernel_inline_logmean!(du, u,
+                                           element, mesh::TreeMesh{3},
+                                           nonconservative_terms::Val{false},
+                                           equations::CompressibleEulerEquations3D,
+                                           volume_flux::typeof(flux_ranocha),
+                                           dg::DGSEM, cache,
+                                           alpha=true)
+  # true * [some floating point value] == [exactly the same floating point value]
+  # This can (hopefully) be optimized away due to constant propagation.
+  @unpack derivative_split, derivative_split_transpose = dg.basis
+
+  # x direction
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+    rho_ll    = u[1, i, j, k, element]
+    rho_v1_ll = u[2, i, j, k, element]
+    rho_v2_ll = u[3, i, j, k, element]
+    rho_v3_ll = u[4, i, j, k, element]
+    rho_e_ll  = u[5, i, j, k, element]
+
+    v1_ll = rho_v1_ll / rho_ll
+    v2_ll = rho_v2_ll / rho_ll
+    v3_ll = rho_v3_ll / rho_ll
+    p_ll  = (equations.gamma - 1) * (
+      rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
+
+    for ii in eachnode(dg)
+      rho_rr    = u[1, ii, j, k, element]
+      rho_v1_rr = u[2, ii, j, k, element]
+      rho_v2_rr = u[3, ii, j, k, element]
+      rho_v3_rr = u[4, ii, j, k, element]
+      rho_e_rr  = u[5, ii, j, k, element]
+
+      v1_rr = rho_v1_rr / rho_rr
+      v2_rr = rho_v2_rr / rho_rr
+      v3_rr = rho_v3_rr / rho_rr
+      p_rr  = (equations.gamma - 1) * (
+        rho_e_rr - 0.5 * (rho_v1_rr * v1_rr + rho_v2_rr * v2_rr + rho_v3_rr * v3_rr))
+
+      # Compute the necessary mean values
+      # rho_mean = ln_mean(rho_ll, rho_rr)
+      x = rho_ll
+      y = rho_rr
+      f2 = (x * (x - 2 * y) + y * y) / (x * (x + 2 * y) + y * y) # f2 = f^2
+      # (x + y) / @evalpoly(f2, 2, 2/3, 2/5, 2/7)
+      special_path1 = (x + y) / (2 + f2*(0.666666666666667 + f2*(0.4 + 0.285714285714286*f2)))
+      regular_path1 = (y - x) / log(y / x)
+      rho_mean = ifelse(f2 < 1.0e-4, special_path1, regular_path1)
+
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      # using the explicit form below doesn't seem to help
+      # x2 = rho_ll * p_rr
+      # y2 = rho_rr * p_ll
+      # f22 = (x2 * (x2 - 2 * y2) + y2 * y2) / (x2 * (x2 + 2 * y2) + y2 * y2) # f2 = f^2
+      # # @evalpoly(f2, 2, 2/3, 2/5, 2/7) / (x + y)
+      # special_path2 = (2 + f2*(0.666666666666667 + f2*(0.4 + 0.285714285714286*f2))) / (x2 + y2)
+      # regular_path2 = log(y2 / x2) / (y2 - x2)
+      # inv_rho_p_mean = p_ll * p_rr * ifelse(f22 < 1.0e-4, special_path2, regular_path2)
+
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v1_avg
+      f2 = f1 * v1_avg + p_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v1_rr + p_rr*v1_ll)
+
+      factor = alpha * derivative_split[i, ii]
+      # factor = alpha * derivative_split_transpose[ii, i]
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
+    end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
+  end
+
+  # y direction
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du, derivative_split), (3, 3, 1)), i in indices((u, du), 2)
+    rho_ll    = u[1, i, j, k, element]
+    rho_v1_ll = u[2, i, j, k, element]
+    rho_v2_ll = u[3, i, j, k, element]
+    rho_v3_ll = u[4, i, j, k, element]
+    rho_e_ll  = u[5, i, j, k, element]
+
+    v1_ll = rho_v1_ll / rho_ll
+    v2_ll = rho_v2_ll / rho_ll
+    v3_ll = rho_v3_ll / rho_ll
+    p_ll  = (equations.gamma - 1) * (
+      rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
+
+    for jj in eachnode(dg)
+    # for jj in indices(u, 3)
+    # for jj in indices((u, derivative_split), (3, 2))
+      rho_rr    = u[1, i, jj, k, element]
+      rho_v1_rr = u[2, i, jj, k, element]
+      rho_v2_rr = u[3, i, jj, k, element]
+      rho_v3_rr = u[4, i, jj, k, element]
+      rho_e_rr  = u[5, i, jj, k, element]
+
+      v1_rr = rho_v1_rr / rho_rr
+      v2_rr = rho_v2_rr / rho_rr
+      v3_rr = rho_v3_rr / rho_rr
+      p_rr  = (equations.gamma - 1) * (
+        rho_e_rr - 0.5 * (rho_v1_rr * v1_rr + rho_v2_rr * v2_rr + rho_v3_rr * v3_rr))
+
+      # Compute the necessary mean values
+      rho_mean = ln_mean(rho_ll, rho_rr)
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v2_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg + p_avg
+      f4 = f1 * v3_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v2_rr + p_rr*v2_ll)
+
+      factor = alpha * derivative_split[j, jj]
+      # factor = alpha * derivative_split_transpose[jj, j]
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
+    end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
+  end
+
+  # z direction
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  # @turbo for k in indices((u, du), 4), j in indices((u, du), 3), i in indices((u, du), 2)
+  # @turbo for k in indices((u, du, derivative_split), (4, 4, 1)), j in indices((u, du), 3), i in indices((u, du), 2)
+    rho_ll    = u[1, i, j, k, element]
+    rho_v1_ll = u[2, i, j, k, element]
+    rho_v2_ll = u[3, i, j, k, element]
+    rho_v3_ll = u[4, i, j, k, element]
+    rho_e_ll  = u[5, i, j, k, element]
+
+    v1_ll = rho_v1_ll / rho_ll
+    v2_ll = rho_v2_ll / rho_ll
+    v3_ll = rho_v3_ll / rho_ll
+    p_ll  = (equations.gamma - 1) * (
+      rho_e_ll - 0.5 * (rho_v1_ll * v1_ll + rho_v2_ll * v2_ll + rho_v3_ll * v3_ll))
+
+    du_1 = zero(eltype(du))
+    du_2 = zero(eltype(du))
+    du_3 = zero(eltype(du))
+    du_4 = zero(eltype(du))
+    du_5 = zero(eltype(du))
+
+    for kk in eachnode(dg)
+    # for kk in indices(u, 4)
+    # for kk in indices((u, derivative_split), (4, 2))
+      rho_rr    = u[1, i, j, kk, element]
+      rho_v1_rr = u[2, i, j, kk, element]
+      rho_v2_rr = u[3, i, j, kk, element]
+      rho_v3_rr = u[4, i, j, kk, element]
+      rho_e_rr  = u[5, i, j, kk, element]
+
+      v1_rr = rho_v1_rr / rho_rr
+      v2_rr = rho_v2_rr / rho_rr
+      v3_rr = rho_v3_rr / rho_rr
+      p_rr  = (equations.gamma - 1) * (
+        rho_e_rr - 0.5 * (rho_v1_rr * v1_rr + rho_v2_rr * v2_rr + rho_v3_rr * v3_rr))
+
+      # Compute the necessary mean values
+      rho_mean = ln_mean(rho_ll, rho_rr)
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v3_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg + p_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v3_rr + p_rr*v3_ll)
+
+      factor = alpha * derivative_split[k, kk]
+      # factor = alpha * derivative_split_transpose[kk, k]
+      du_1 += factor * f1
+      du_2 += factor * f2
+      du_3 += factor * f3
+      du_4 += factor * f4
+      du_5 += factor * f5
+    end
+
+    du[1, i, j, k, element] += du_1
+    du[2, i, j, k, element] += du_2
+    du[3, i, j, k, element] += du_3
+    du[4, i, j, k, element] += du_4
+    du[5, i, j, k, element] += du_5
+  end
+end
+

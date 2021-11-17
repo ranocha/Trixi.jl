@@ -53,7 +53,7 @@ Given ε = 1.0e-4, we use the following algorithm.
   for Intel, AMD, and VIA CPUs.
   https://www.agner.org/optimize/instruction_tables.pdf
 """
-@inline function ln_mean(x, y)
+@inline function ln_mean(x::Float64, y::Float64)
   epsilon_f2 = 1.0e-4
   f2 = (x * (x - 2 * y) + y * y) / (x * (x + 2 * y) + y * y) # f2 = f^2
   if f2 < epsilon_f2
@@ -61,6 +61,15 @@ Given ε = 1.0e-4, we use the following algorithm.
   else
     return (y - x) / log(y / x)
   end
+end
+
+@inline function ln_mean(x, y)
+  epsilon_f2 = 1.0e-4
+  f2 = (x * (x - 2 * y) + y * y) / (x * (x + 2 * y) + y * y) # f2 = f^2
+  ifelse(f2 < epsilon_f2,
+    (x + y) / @evalpoly(f2, 2, 2/3, 2/5, 2/7),
+    (y - x) / log(y / x)
+  )
 end
 
 """
@@ -73,7 +82,7 @@ This function may be used to increase performance where the inverse of the
 logarithmic mean is needed, by replacing a (slow) division by a (fast)
 multiplication.
 """
-@inline function inv_ln_mean(x, y)
+@inline function inv_ln_mean(x::Float64, y::Float64)
   epsilon_f2 = 1.0e-4
   f2 = (x * (x - 2 * y) + y * y) / (x * (x + 2 * y) + y * y) # f2 = f^2
   if f2 < epsilon_f2
@@ -81,6 +90,15 @@ multiplication.
   else
     return log(y / x) / (y - x)
   end
+end
+
+@inline function inv_ln_mean(x, y)
+  epsilon_f2 = 1.0e-4
+  f2 = (x * (x - 2 * y) + y * y) / (x * (x + 2 * y) + y * y) # f2 = f^2
+  ifelse(f2 < epsilon_f2,
+    @evalpoly(f2, 2, 2/3, 2/5, 2/7) / (x + y),
+    log(y / x) / (y - x)
+  )
 end
 
 
