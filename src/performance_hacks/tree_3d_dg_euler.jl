@@ -2167,15 +2167,31 @@ end
 
       # Compute the necessary mean values
       # rho_mean = ln_mean(rho_ll, rho_rr)
-      rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      # rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      x1 = rho_ll
+      log_x1 = log_rho_ll
+      y1 = rho_rr
+      log_y1 = log_rho_rr
+      z1 = (x1 * (x1 - 2 * y1) + y1 * y1) / (x1 * (x1 + 2 * y1) + y1 * y1)
+      special_path1 = (x1 + y1) / (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1)))
+      regular_path1 = (y1 - x1) / (log_y1 - log_x1)
+      rho_mean = ifelse(z1 < 1.0e-4, special_path1, regular_path1)
 
       # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
       # in exact arithmetic since
       #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
       #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
       # inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
-      inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
-                                   rho_rr / p_rr, log_rho_p_rr)
+      # inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
+      #                              rho_rr / p_rr, log_rho_p_rr)
+      x2 = rho_ll / p_ll
+      log_x2 = log_rho_p_ll
+      y2 = rho_rr / p_rr
+      log_y2 = log_rho_p_rr
+      z2 = (x2 * (x2 - 2 * y2) + y2 * y2) / (x2 * (x2 + 2 * y2) + y2 * y2)
+      special_path2 = (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1))) / (x2 + y2)
+      regular_path2 = (log_y2 - log_x2) / (y2 - x2)
+      inv_rho_p_mean = ifelse(z2 < 1.0e-4, special_path2, regular_path2)
 
       v1_avg = 0.5 * (v1_ll + v1_rr)
       v2_avg = 0.5 * (v2_ll + v2_rr)
@@ -2236,15 +2252,31 @@ end
 
       # Compute the necessary mean values
       # rho_mean = ln_mean(rho_ll, rho_rr)
-      rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      # rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      x1 = rho_ll
+      log_x1 = log_rho_ll
+      y1 = rho_rr
+      log_y1 = log_rho_rr
+      z1 = (x1 * (x1 - 2 * y1) + y1 * y1) / (x1 * (x1 + 2 * y1) + y1 * y1)
+      special_path1 = (x1 + y1) / (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1)))
+      regular_path1 = (y1 - x1) / (log_y1 - log_x1)
+      rho_mean = ifelse(z1 < 1.0e-4, special_path1, regular_path1)
 
       # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
       # in exact arithmetic since
       #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
       #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
       # inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
-      inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
-                                   rho_rr / p_rr, log_rho_p_rr)
+      # inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
+      #                              rho_rr / p_rr, log_rho_p_rr)
+      x2 = rho_ll / p_ll
+      log_x2 = log_rho_p_ll
+      y2 = rho_rr / p_rr
+      log_y2 = log_rho_p_rr
+      z2 = (x2 * (x2 - 2 * y2) + y2 * y2) / (x2 * (x2 + 2 * y2) + y2 * y2)
+      special_path2 = (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1))) / (x2 + y2)
+      regular_path2 = (log_y2 - log_x2) / (y2 - x2)
+      inv_rho_p_mean = ifelse(z2 < 1.0e-4, special_path2, regular_path2)
 
       v1_avg = 0.5 * (v1_ll + v1_rr)
       v2_avg = 0.5 * (v2_ll + v2_rr)
@@ -2303,15 +2335,31 @@ end
 
       # Compute the necessary mean values
       # rho_mean = ln_mean(rho_ll, rho_rr)
-      rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      # rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      x1 = rho_ll
+      log_x1 = log_rho_ll
+      y1 = rho_rr
+      log_y1 = log_rho_rr
+      z1 = (x1 * (x1 - 2 * y1) + y1 * y1) / (x1 * (x1 + 2 * y1) + y1 * y1)
+      special_path1 = (x1 + y1) / (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1)))
+      regular_path1 = (y1 - x1) / (log_y1 - log_x1)
+      rho_mean = ifelse(z1 < 1.0e-4, special_path1, regular_path1)
 
       # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
       # in exact arithmetic since
       #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
       #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
       # inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
-      inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
-                                   rho_rr / p_rr, log_rho_p_rr)
+      # inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
+      #                              rho_rr / p_rr, log_rho_p_rr)
+      x2 = rho_ll / p_ll
+      log_x2 = log_rho_p_ll
+      y2 = rho_rr / p_rr
+      log_y2 = log_rho_p_rr
+      z2 = (x2 * (x2 - 2 * y2) + y2 * y2) / (x2 * (x2 + 2 * y2) + y2 * y2)
+      special_path2 = (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1))) / (x2 + y2)
+      regular_path2 = (log_y2 - log_x2) / (y2 - x2)
+      inv_rho_p_mean = ifelse(z2 < 1.0e-4, special_path2, regular_path2)
 
       v1_avg = 0.5 * (v1_ll + v1_rr)
       v2_avg = 0.5 * (v2_ll + v2_rr)
