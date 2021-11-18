@@ -62,11 +62,12 @@ du_soa = StructArray{SVector{nvariables(equations), eltype(u_ode)}}(
   $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
 
 
-function run_benchmarks(polydegs)
+function run_benchmarks_shima_etal(polydegs)
   baseline = Vector{Float64}()
   turbo_on = Vector{Float64}()
   prim_var = Vector{Float64}()
   rearranged = Vector{Float64}()
+  permuted = Vector{Float64}()
 
   for polydeg in polydegs
     @show polydeg
@@ -109,44 +110,144 @@ function run_benchmarks(polydegs)
         $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
         $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
       push!(rearranged, time(minimum(result)))
+
+      result = @benchmark Trixi.flux_differencing_kernel_permuted!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(permuted, time(minimum(result)))
     end
   end
 
   hcat(polydegs, baseline,
        turbo_on, turbo_on ./ baseline,
        prim_var, prim_var ./ baseline,
-       rearranged, rearranged ./ baseline)
+       rearranged, rearranged ./ baseline,
+       permuted, permuted ./ baseline)
 end
 
-results = run_benchmarks(1:15)
-# 15×8 Matrix{Float64}:
-#   1.0     130.454     196.455  1.50593      157.305  1.20583       88.0729  0.675126
-#   2.0     651.877     669.094  1.02641      468.454  0.718623     395.095   0.606087
-#   3.0    2078.22     1464.4    0.704641    1130.5    0.543975    1135.5     0.54638
-#   4.0    5075.0      5163.0    1.01734     3633.0    0.715862    3504.0     0.690443
-#   5.0   10604.0      8733.0    0.823557    6325.4    0.596511    6803.6     0.641607
-#   6.0   19774.0     14073.0    0.711692    9989.0    0.505158   12532.0     0.633762
-#   7.0   33792.0     20634.0    0.610618   14936.0    0.441998   19263.0     0.570046
-#   8.0   55387.0     41995.0    0.75821    29538.0    0.533302   37043.0     0.668803
-#   9.0   85167.0     57706.0    0.677563   39303.0    0.461482   55207.0     0.648221
-#  10.0  124718.0     77033.0    0.617657   54412.0    0.43628    82762.0     0.663593
-#  11.0  178912.0     99571.0    0.556536   70343.0    0.393171  109271.0     0.610753
-#  12.0  250083.0    163108.0    0.652215  111759.0    0.446888  165991.0     0.663744
-#  13.0  346647.0    204391.0    0.589623  146411.0    0.422363  225718.0     0.651147
-#  14.0  443217.0    253755.0    0.57253   177370.0    0.400188  312799.0     0.705747
-#  15.0  579960.0    306063.0    0.527731  218419.0    0.37661   372407.0     0.642125
+results_shima_etal = run_benchmarks_shima_etal(1:15)
+# 15×10 Matrix{Float64}:
+#   1.0     131.759     198.748  1.50841      171.561  1.30207       96.5773  0.732982     104.112  0.790168
+#   2.0     643.205     644.353  1.00179      455.548  0.708248     392.415   0.610093     338.05   0.525571
+#   3.0    2117.33     1455.0    0.687185    1048.3    0.495104    1134.8     0.535957     657.786  0.310667
+#   4.0    5088.5      5061.83   0.994759    3463.62   0.680677    3579.38    0.703424    2001.89   0.393414
+#   5.0   10586.0      8667.0    0.818723    5986.33   0.565495    6858.6     0.647893    3585.25   0.338678
+#   6.0   20148.0     13646.0    0.677288    9402.0    0.466647   11925.0     0.59187     6915.2    0.34322
+#   7.0   33859.0     20397.0    0.60241    13842.0    0.408813   19190.0     0.566762   10828.0    0.319797
+#   8.0   55283.0     41343.0    0.747843   28325.0    0.512364   36369.0     0.65787    18595.0    0.33636
+#   9.0   85603.0     56691.0    0.662255   38536.0    0.450171   55087.0     0.643517   27463.0    0.320818
+#  10.0  124653.0     75882.0    0.608746   50385.0    0.404202   77536.0     0.622015   40824.0    0.327501
+#  11.0  177992.0     97943.0    0.550266   64620.0    0.36305   108337.0     0.608662   49485.0    0.278018
+#  12.0  246615.0    160689.0    0.651578  104598.0    0.424135  163544.0     0.663155   90336.0    0.366304
+#  13.0  337266.0    200841.0    0.595497  132285.0    0.392227  220614.0     0.654125  113194.0    0.335622
+#  14.0  448047.0    247830.0    0.553134  163658.0    0.36527   303344.0     0.677036  166929.0    0.37257
+#  15.0  627788.0    308225.0    0.49097   198696.0    0.316502  380722.0     0.60645   333565.0    0.531334
+
 
 using Plots
-fig_abs = scatter(results[:, 1], results[:, 2], label="Baseline",
-  xguide="Polynomial degree", yguide="Runtime", yscale=:log10, legend=:bottomright);
-  scatter!(results[:, 1], results[:, 3], label="Turbo");
-  scatter!(results[:, 1], results[:, 5], label="Primitive variables");
-  scatter!(results[:, 1], results[:, 7], label="Rearranged")
-fig_rel = scatter(results[:, 1], results[:, 4], label="Turbo",
-  xguide="Polynomial degree", yguide="Relative runtime");
-  scatter!(results[:, 1], results[:, 6], label="Primitive variables");
-  scatter!(results[:, 1], results[:, 8], label="Rearranged")
-plot(fig_abs, fig_rel, layout=(2,1))
+let results = results_shima_etal
+  fig_abs = scatter(results[:, 1], results[:, 2], label="Baseline",
+    xguide="Polynomial degree", yguide="Runtime", yscale=:log10, legend=:bottomright);
+    scatter!(results[:, 1], results[:, 3], label="Turbo");
+    scatter!(results[:, 1], results[:, 5], label="Primitive variables");
+    scatter!(results[:, 1], results[:, 7], label="Rearranged");
+    scatter!(results[:, 1], results[:, 9], label="Permuted")
+  fig_rel = scatter(results[:, 1], results[:, 4], label="Turbo",
+    xguide="Polynomial degree", yguide="Relative runtime");
+    scatter!(results[:, 1], results[:, 6], label="Primitive variables");
+    scatter!(results[:, 1], results[:, 8], label="Rearranged");
+    scatter!(results[:, 1], results[:, 10], label="Permuted")
+  plot(fig_abs, fig_rel, layout=(2,1))
+end
+
+
+function run_benchmarks_ranocha(polydegs)
+  baseline = Vector{Float64}()
+  turbo_on = Vector{Float64}()
+  permuted = Vector{Float64}()
+  permuted_log = Vector{Float64}()
+
+  for polydeg in polydegs
+    @show polydeg
+
+    redirect_stdout(devnull) do
+      trixi_include("examples/tree_3d_dgsem/elixir_euler_ec.jl",
+        volume_flux=flux_ranocha, surface_flux=flux_ranocha,
+        tspan=(0.0, 0.0), initial_refinement_level=0,
+        polydeg=polydeg)
+    end
+    u_ode = copy(ode.u0)
+    du_ode = zero(u_ode)
+
+    GC.@preserve u_ode du_ode begin
+      u = Trixi.wrap_array(u_ode, semi)
+      du = Trixi.wrap_array(du_ode, semi)
+
+      result = @benchmark Trixi.split_form_kernel!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(baseline, time(minimum(result)))
+
+      result = @benchmark Trixi.flux_differencing_kernel!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(turbo_on, time(minimum(result)))
+
+      result = @benchmark Trixi.flux_differencing_kernel_permuted!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(permuted, time(minimum(result)))
+
+      result = @benchmark Trixi.flux_differencing_kernel_permuted_log!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(permuted_log, time(minimum(result)))
+    end
+  end
+
+  hcat(polydegs, baseline,
+       turbo_on, turbo_on ./ baseline,
+       permuted, permuted ./ baseline,
+       permuted_log, permuted_log ./ baseline)
+end
+
+results_ranocha = run_benchmarks_ranocha(1:15)
+# 15×8 Matrix{Float64}:
+#   1.0     211.469        781.806      3.69703     209.395  0.990196     218.123  1.03147
+#   2.0    1215.9         2602.78       2.14062    1009.3    0.830085     722.0    0.593799
+#   3.0    3792.75        5997.2        1.58123    2395.11   0.631497    1654.8    0.436306
+#   4.0    9738.0        22501.0        2.31064    7697.5    0.79046     5141.0    0.527932
+#   5.0   19710.0        38698.0        1.96337   14458.0    0.733536    8890.67   0.451074
+#   6.0   37605.0        61689.0        1.64045   27420.0    0.729158   15908.0    0.423029
+#   7.0   65388.0        91898.0        1.40543   42333.0    0.647412   24275.0    0.371245
+#   8.0  105073.0       192803.0        1.83494   78380.0    0.745958   44343.0    0.422021
+#   9.0  161016.0       264662.0        1.6437   111650.0    0.693409   63617.0    0.395097
+#  10.0  238000.0       352505.0        1.48111  171410.0    0.72021    99934.0    0.419891
+#  11.0  336875.0       458531.0        1.36113  217157.0    0.644622  119365.0    0.35433
+#  12.0  470004.0       768263.0        1.63459  339150.0    0.72159   179664.0    0.382261
+#  13.0  627736.0       960149.0        1.52954  436179.0    0.694845  237223.0    0.377902
+#  14.0  832863.0            1.1807e6   1.41764  594948.0    0.714341  307930.0    0.369725
+#  15.0       1.1499e6       1.44184e6  1.25388  812283.0    0.706392  505359.0    0.439479
+
+
+let results = results_ranocha
+  fig_abs = scatter(results[:, 1], results[:, 2], label="Baseline",
+    xguide="Polynomial degree", yguide="Runtime", yscale=:log10, legend=:bottomright);
+    # scatter!(results[:, 1], results[:, 3], label="Turbo");
+    scatter!(results[:, 1], results[:, 5], label="Permuted");
+    scatter!(results[:, 1], results[:, 7], label="Permuted, log")
+  fig_rel = plot(xguide="Polynomial degree", yguide="Relative runtime")
+    # scatter!(results[:, 1], results[:, 4], label="Turbo");
+    scatter!(results[:, 1], results[:, 6], label="Permuted");
+    scatter!(results[:, 1], results[:, 8], label="Permuted, log")
+  plot(fig_abs, fig_rel, layout=(2,1))
+end
+
 =#
 
 
