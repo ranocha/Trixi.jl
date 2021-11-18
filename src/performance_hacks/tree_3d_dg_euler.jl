@@ -629,19 +629,19 @@ end
       f4 = f1 * v3_avg
       f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
 
-      factor = alpha * derivative_split[i, ii]
-      du[1, i, j, k, element] += factor * f1
-      du[2, i, j, k, element] += factor * f2
-      du[3, i, j, k, element] += factor * f3
-      du[4, i, j, k, element] += factor * f4
-      du[5, i, j, k, element] += factor * f5
+      factor_i = alpha * derivative_split[i, ii]
+      du[1, i, j, k, element] += factor_i * f1
+      du[2, i, j, k, element] += factor_i * f2
+      du[3, i, j, k, element] += factor_i * f3
+      du[4, i, j, k, element] += factor_i * f4
+      du[5, i, j, k, element] += factor_i * f5
 
-      factor = alpha * derivative_split[ii, i]
-      du[1, ii, j, k, element] += factor * f1
-      du[2, ii, j, k, element] += factor * f2
-      du[3, ii, j, k, element] += factor * f3
-      du[4, ii, j, k, element] += factor * f4
-      du[5, ii, j, k, element] += factor * f5
+      factor_ii = alpha * derivative_split[ii, i]
+      du[1, ii, j, k, element] += factor_ii * f1
+      du[2, ii, j, k, element] += factor_ii * f2
+      du[3, ii, j, k, element] += factor_ii * f3
+      du[4, ii, j, k, element] += factor_ii * f4
+      du[5, ii, j, k, element] += factor_ii * f5
     end
   end
 
@@ -675,19 +675,19 @@ end
       f4 = f1 * v3_avg
       f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
 
-      factor = alpha * derivative_split[j, jj]
-      du[1, i, j, k, element] += factor * f1
-      du[2, i, j, k, element] += factor * f2
-      du[3, i, j, k, element] += factor * f3
-      du[4, i, j, k, element] += factor * f4
-      du[5, i, j, k, element] += factor * f5
+      factor_j = alpha * derivative_split[j, jj]
+      du[1, i, j, k, element] += factor_j * f1
+      du[2, i, j, k, element] += factor_j * f2
+      du[3, i, j, k, element] += factor_j * f3
+      du[4, i, j, k, element] += factor_j * f4
+      du[5, i, j, k, element] += factor_j * f5
 
-      factor = alpha * derivative_split[jj, j]
-      du[1, i, jj, k, element] += factor * f1
-      du[2, i, jj, k, element] += factor * f2
-      du[3, i, jj, k, element] += factor * f3
-      du[4, i, jj, k, element] += factor * f4
-      du[5, i, jj, k, element] += factor * f5
+      factor_jj = alpha * derivative_split[jj, j]
+      du[1, i, jj, k, element] += factor_jj * f1
+      du[2, i, jj, k, element] += factor_jj * f2
+      du[3, i, jj, k, element] += factor_jj * f3
+      du[4, i, jj, k, element] += factor_jj * f4
+      du[5, i, jj, k, element] += factor_jj * f5
     end
   end
 
@@ -721,19 +721,19 @@ end
       f4 = f1 * v3_avg + p_avg
       f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
 
-      factor = alpha * derivative_split[k, kk]
-      du[1, i, j, k, element] += factor * f1
-      du[2, i, j, k, element] += factor * f2
-      du[3, i, j, k, element] += factor * f3
-      du[4, i, j, k, element] += factor * f4
-      du[5, i, j, k, element] += factor * f5
+      factor_k = alpha * derivative_split[k, kk]
+      du[1, i, j, k, element] += factor_k * f1
+      du[2, i, j, k, element] += factor_k * f2
+      du[3, i, j, k, element] += factor_k * f3
+      du[4, i, j, k, element] += factor_k * f4
+      du[5, i, j, k, element] += factor_k * f5
 
-      factor = alpha * derivative_split[kk, k]
-      du[1, i, j, kk, element] += factor * f1
-      du[2, i, j, kk, element] += factor * f2
-      du[3, i, j, kk, element] += factor * f3
-      du[4, i, j, kk, element] += factor * f4
-      du[5, i, j, kk, element] += factor * f5
+      factor_kk = alpha * derivative_split[kk, k]
+      du[1, i, j, kk, element] += factor_kk * f1
+      du[2, i, j, kk, element] += factor_kk * f2
+      du[3, i, j, kk, element] += factor_kk * f3
+      du[4, i, j, kk, element] += factor_kk * f4
+      du[5, i, j, kk, element] += factor_kk * f5
     end
   end
 end
@@ -763,6 +763,7 @@ end
   du = StrideArray{eltype(u_cons)}(undef,
     (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
     StaticInt(nvariables(equations))))
+  fill!(du, zero(eltype(du))) # TODO: Can be removed
 
   @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
     rho    = u_cons[1, i, j, k, element]
@@ -783,8 +784,8 @@ end
     u_prim[i, j, k, 5] = p
   end
 
+
   # x direction
-  # fill!(du, zero(eltype(du)))
   # for i in eachnode(dg), ii in (i+1):nnodes(dg)
   #   @turbo for k in eachnode(dg), j in eachnode(dg)
   #     rho_ll = u_prim[i, j, k, 1]
@@ -814,22 +815,21 @@ end
   #     f4 = f1 * v3_avg
   #     f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
 
-  #     factor = alpha * derivative_split[i, ii]
-  #     du[i, j, k, 1] += factor * f1
-  #     du[i, j, k, 2] += factor * f2
-  #     du[i, j, k, 3] += factor * f3
-  #     du[i, j, k, 4] += factor * f4
-  #     du[i, j, k, 5] += factor * f5
+  #     factor_i = alpha * derivative_split[i, ii]
+  #     du[i, j, k, 1] += factor_i * f1
+  #     du[i, j, k, 2] += factor_i * f2
+  #     du[i, j, k, 3] += factor_i * f3
+  #     du[i, j, k, 4] += factor_i * f4
+  #     du[i, j, k, 5] += factor_i * f5
 
-  #     factor = alpha * derivative_split[ii, i]
-  #     du[ii, j, k, 1] += factor * f1
-  #     du[ii, j, k, 2] += factor * f2
-  #     du[ii, j, k, 3] += factor * f3
-  #     du[ii, j, k, 4] += factor * f4
-  #     du[ii, j, k, 5] += factor * f5
+  #     factor_ii = alpha * derivative_split[ii, i]
+  #     du[ii, j, k, 1] += factor_ii * f1
+  #     du[ii, j, k, 2] += factor_ii * f2
+  #     du[ii, j, k, 3] += factor_ii * f3
+  #     du[ii, j, k, 4] += factor_ii * f4
+  #     du[ii, j, k, 5] += factor_ii * f5
   #   end
   # end
-
 
   du_permuted = StrideArray{eltype(u_cons)}(undef,
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
@@ -839,7 +839,10 @@ end
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
     StaticInt(nvariables(equations))))
 
-  @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for v in eachvariable(equations),
+             k in eachnode(dg),
+             j in eachnode(dg),
+             i in eachnode(dg)
     jk = j + nnodes(dg) * (k- 1)
     u_prim_permuted[jk, i, v] = u_prim[i, j, k, v]
   end
@@ -874,23 +877,26 @@ end
       f4 = f1 * v3_avg
       f5 = p_avg * v1_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv1_avg
 
-      factor = alpha * derivative_split[i, ii]
-      du_permuted[jk, i, 1] += factor * f1
-      du_permuted[jk, i, 2] += factor * f2
-      du_permuted[jk, i, 3] += factor * f3
-      du_permuted[jk, i, 4] += factor * f4
-      du_permuted[jk, i, 5] += factor * f5
+      factor_i = alpha * derivative_split[i, ii]
+      du_permuted[jk, i, 1] += factor_i * f1
+      du_permuted[jk, i, 2] += factor_i * f2
+      du_permuted[jk, i, 3] += factor_i * f3
+      du_permuted[jk, i, 4] += factor_i * f4
+      du_permuted[jk, i, 5] += factor_i * f5
 
-      factor = alpha * derivative_split[ii, i]
-      du_permuted[jk, ii, 1] += factor * f1
-      du_permuted[jk, ii, 2] += factor * f2
-      du_permuted[jk, ii, 3] += factor * f3
-      du_permuted[jk, ii, 4] += factor * f4
-      du_permuted[jk, ii, 5] += factor * f5
+      factor_ii = alpha * derivative_split[ii, i]
+      du_permuted[jk, ii, 1] += factor_ii * f1
+      du_permuted[jk, ii, 2] += factor_ii * f2
+      du_permuted[jk, ii, 3] += factor_ii * f3
+      du_permuted[jk, ii, 4] += factor_ii * f4
+      du_permuted[jk, ii, 5] += factor_ii * f5
     end
   end
 
-  @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+  @turbo for v in eachvariable(equations),
+             k in eachnode(dg),
+             j in eachnode(dg),
+             i in eachnode(dg)
     jk = j + nnodes(dg) * (k- 1)
     du[i, j, k, v] = du_permuted[jk, i, v]
   end
@@ -926,22 +932,21 @@ end
       f4 = f1 * v3_avg
       f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
 
-      factor = alpha * derivative_split[j, jj]
-      du[i, j, k, 1] += factor * f1
-      du[i, j, k, 2] += factor * f2
-      du[i, j, k, 3] += factor * f3
-      du[i, j, k, 4] += factor * f4
-      du[i, j, k, 5] += factor * f5
+      factor_j = alpha * derivative_split[j, jj]
+      du[i, j, k, 1] += factor_j * f1
+      du[i, j, k, 2] += factor_j * f2
+      du[i, j, k, 3] += factor_j * f3
+      du[i, j, k, 4] += factor_j * f4
+      du[i, j, k, 5] += factor_j * f5
 
-      factor = alpha * derivative_split[jj, j]
-      du[i, jj, k, 1] += factor * f1
-      du[i, jj, k, 2] += factor * f2
-      du[i, jj, k, 3] += factor * f3
-      du[i, jj, k, 4] += factor * f4
-      du[i, jj, k, 5] += factor * f5
+      factor_jj = alpha * derivative_split[jj, j]
+      du[i, jj, k, 1] += factor_jj * f1
+      du[i, jj, k, 2] += factor_jj * f2
+      du[i, jj, k, 3] += factor_jj * f3
+      du[i, jj, k, 4] += factor_jj * f4
+      du[i, jj, k, 5] += factor_jj * f5
     end
   end
-
 
   # permuting appears to be more expensive than justified by possible gains
   # @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
@@ -979,19 +984,19 @@ end
   #     f4 = f1 * v3_avg
   #     f5 = p_avg*v2_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv2_avg
 
-  #     factor = alpha * derivative_split[j, jj]
-  #     du_permuted[ik, j, 1] += factor * f1
-  #     du_permuted[ik, j, 2] += factor * f2
-  #     du_permuted[ik, j, 3] += factor * f3
-  #     du_permuted[ik, j, 4] += factor * f4
-  #     du_permuted[ik, j, 5] += factor * f5
+  #     factor_j = alpha * derivative_split[j, jj]
+  #     du_permuted[ik, j, 1] += factor_j * f1
+  #     du_permuted[ik, j, 2] += factor_j * f2
+  #     du_permuted[ik, j, 3] += factor_j * f3
+  #     du_permuted[ik, j, 4] += factor_j * f4
+  #     du_permuted[ik, j, 5] += factor_j * f5
 
-  #     factor = alpha * derivative_split[jj, j]
-  #     du_permuted[ik, jj, 1] += factor * f1
-  #     du_permuted[ik, jj, 2] += factor * f2
-  #     du_permuted[ik, jj, 3] += factor * f3
-  #     du_permuted[ik, jj, 4] += factor * f4
-  #     du_permuted[ik, jj, 5] += factor * f5
+  #     factor_jj = alpha * derivative_split[jj, j]
+  #     du_permuted[ik, jj, 1] += factor_jj * f1
+  #     du_permuted[ik, jj, 2] += factor_jj * f2
+  #     du_permuted[ik, jj, 3] += factor_jj * f3
+  #     du_permuted[ik, jj, 4] += factor_jj * f4
+  #     du_permuted[ik, jj, 5] += factor_jj * f5
   #   end
   # end
 
@@ -1031,19 +1036,19 @@ end
   #     f4 = f1 * v3_avg + p_avg
   #     f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
 
-  #     factor = alpha * derivative_split[k, kk]
-  #     du[i, j, k, 1] += factor * f1
-  #     du[i, j, k, 2] += factor * f2
-  #     du[i, j, k, 3] += factor * f3
-  #     du[i, j, k, 4] += factor * f4
-  #     du[i, j, k, 5] += factor * f5
+  #     factor_k = alpha * derivative_split[k, kk]
+  #     du[i, j, k, 1] += factor_k * f1
+  #     du[i, j, k, 2] += factor_k * f2
+  #     du[i, j, k, 3] += factor_k * f3
+  #     du[i, j, k, 4] += factor_k * f4
+  #     du[i, j, k, 5] += factor_k * f5
 
-  #     factor = alpha * derivative_split[kk, k]
-  #     du[i, j, kk, 1] += factor * f1
-  #     du[i, j, kk, 2] += factor * f2
-  #     du[i, j, kk, 3] += factor * f3
-  #     du[i, j, kk, 4] += factor * f4
-  #     du[i, j, kk, 5] += factor * f5
+  #     factor_kk = alpha * derivative_split[kk, k]
+  #     du[i, j, kk, 1] += factor_kk * f1
+  #     du[i, j, kk, 2] += factor_kk * f2
+  #     du[i, j, kk, 3] += factor_kk * f3
+  #     du[i, j, kk, 4] += factor_kk * f4
+  #     du[i, j, kk, 5] += factor_kk * f5
   #   end
   # end
 
@@ -1082,23 +1087,27 @@ end
       f4 = f1 * v3_avg + p_avg
       f5 = p_avg*v3_avg * equations.inv_gamma_minus_one + f1 * kin_avg + pv3_avg
 
-      factor = alpha * derivative_split[k, kk]
-      du_perm[ij, k, 1] += factor * f1
-      du_perm[ij, k, 2] += factor * f2
-      du_perm[ij, k, 3] += factor * f3
-      du_perm[ij, k, 4] += factor * f4
-      du_perm[ij, k, 5] += factor * f5
+      factor_k = alpha * derivative_split[k, kk]
+      du_perm[ij, k, 1] += factor_k * f1
+      du_perm[ij, k, 2] += factor_k * f2
+      du_perm[ij, k, 3] += factor_k * f3
+      du_perm[ij, k, 4] += factor_k * f4
+      du_perm[ij, k, 5] += factor_k * f5
 
-      factor = alpha * derivative_split[kk, k]
-      du_perm[ij, kk, 1] += factor * f1
-      du_perm[ij, kk, 2] += factor * f2
-      du_perm[ij, kk, 3] += factor * f3
-      du_perm[ij, kk, 4] += factor * f4
-      du_perm[ij, kk, 5] += factor * f5
+      factor_kk = alpha * derivative_split[kk, k]
+      du_perm[ij, kk, 1] += factor_kk * f1
+      du_perm[ij, kk, 2] += factor_kk * f2
+      du_perm[ij, kk, 3] += factor_kk * f3
+      du_perm[ij, kk, 4] += factor_kk * f4
+      du_perm[ij, kk, 5] += factor_kk * f5
     end
   end
 
-  @turbo for v in eachvariable(equations), k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+
+  @turbo for v in eachvariable(equations),
+             k in eachnode(dg),
+             j in eachnode(dg),
+             i in eachnode(dg)
   # @turbo for v in indices((_du, du), (1, 4)),
   #            k in indices((_du, du), (4, 3)),
   #            j in indices((_du, du), (3, 2)),
@@ -1914,19 +1923,19 @@ end
       f4 = f1 * v3_avg
       f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v1_rr + p_rr*v1_ll)
 
-      factor = alpha * derivative_split[i, ii]
-      du_permuted[jk, i, 1] += factor * f1
-      du_permuted[jk, i, 2] += factor * f2
-      du_permuted[jk, i, 3] += factor * f3
-      du_permuted[jk, i, 4] += factor * f4
-      du_permuted[jk, i, 5] += factor * f5
+      factor_i = alpha * derivative_split[i, ii]
+      du_permuted[jk, i, 1] += factor_i * f1
+      du_permuted[jk, i, 2] += factor_i * f2
+      du_permuted[jk, i, 3] += factor_i * f3
+      du_permuted[jk, i, 4] += factor_i * f4
+      du_permuted[jk, i, 5] += factor_i * f5
 
-      factor = alpha * derivative_split[ii, i]
-      du_permuted[jk, ii, 1] += factor * f1
-      du_permuted[jk, ii, 2] += factor * f2
-      du_permuted[jk, ii, 3] += factor * f3
-      du_permuted[jk, ii, 4] += factor * f4
-      du_permuted[jk, ii, 5] += factor * f5
+      factor_ii = alpha * derivative_split[ii, i]
+      du_permuted[jk, ii, 1] += factor_ii * f1
+      du_permuted[jk, ii, 2] += factor_ii * f2
+      du_permuted[jk, ii, 3] += factor_ii * f3
+      du_permuted[jk, ii, 4] += factor_ii * f4
+      du_permuted[jk, ii, 5] += factor_ii * f5
     end
   end
 
@@ -1987,19 +1996,19 @@ end
       f4 = f1 * v3_avg
       f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v2_rr + p_rr*v2_ll)
 
-      factor = alpha * derivative_split[j, jj]
-      du[i, j, k, 1] += factor * f1
-      du[i, j, k, 2] += factor * f2
-      du[i, j, k, 3] += factor * f3
-      du[i, j, k, 4] += factor * f4
-      du[i, j, k, 5] += factor * f5
+      factor_j = alpha * derivative_split[j, jj]
+      du[i, j, k, 1] += factor_j * f1
+      du[i, j, k, 2] += factor_j * f2
+      du[i, j, k, 3] += factor_j * f3
+      du[i, j, k, 4] += factor_j * f4
+      du[i, j, k, 5] += factor_j * f5
 
-      factor = alpha * derivative_split[jj, j]
-      du[i, jj, k, 1] += factor * f1
-      du[i, jj, k, 2] += factor * f2
-      du[i, jj, k, 3] += factor * f3
-      du[i, jj, k, 4] += factor * f4
-      du[i, jj, k, 5] += factor * f5
+      factor_jj = alpha * derivative_split[jj, j]
+      du[i, jj, k, 1] += factor_jj * f1
+      du[i, jj, k, 2] += factor_jj * f2
+      du[i, jj, k, 3] += factor_jj * f3
+      du[i, jj, k, 4] += factor_jj * f4
+      du[i, jj, k, 5] += factor_jj * f5
     end
   end
 
@@ -2061,19 +2070,19 @@ end
       f4 = f1 * v3_avg + p_avg
       f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v3_rr + p_rr*v3_ll)
 
-      factor = alpha * derivative_split[k, kk]
-      du_perm[ij, k, 1] += factor * f1
-      du_perm[ij, k, 2] += factor * f2
-      du_perm[ij, k, 3] += factor * f3
-      du_perm[ij, k, 4] += factor * f4
-      du_perm[ij, k, 5] += factor * f5
+      factor_k = alpha * derivative_split[k, kk]
+      du_perm[ij, k, 1] += factor_k * f1
+      du_perm[ij, k, 2] += factor_k * f2
+      du_perm[ij, k, 3] += factor_k * f3
+      du_perm[ij, k, 4] += factor_k * f4
+      du_perm[ij, k, 5] += factor_k * f5
 
-      factor = alpha * derivative_split[kk, k]
-      du_perm[ij, kk, 1] += factor * f1
-      du_perm[ij, kk, 2] += factor * f2
-      du_perm[ij, kk, 3] += factor * f3
-      du_perm[ij, kk, 4] += factor * f4
-      du_perm[ij, kk, 5] += factor * f5
+      factor_kk = alpha * derivative_split[kk, k]
+      du_perm[ij, kk, 1] += factor_kk * f1
+      du_perm[ij, kk, 2] += factor_kk * f2
+      du_perm[ij, kk, 3] += factor_kk * f3
+      du_perm[ij, kk, 4] += factor_kk * f4
+      du_perm[ij, kk, 5] += factor_kk * f5
     end
   end
 
@@ -2205,19 +2214,19 @@ end
       f4 = f1 * v3_avg
       f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v1_rr + p_rr*v1_ll)
 
-      factor = alpha * derivative_split[i, ii]
-      du_permuted[jk, i, 1] += factor * f1
-      du_permuted[jk, i, 2] += factor * f2
-      du_permuted[jk, i, 3] += factor * f3
-      du_permuted[jk, i, 4] += factor * f4
-      du_permuted[jk, i, 5] += factor * f5
+      factor_i = alpha * derivative_split[i, ii]
+      du_permuted[jk, i, 1] += factor_i * f1
+      du_permuted[jk, i, 2] += factor_i * f2
+      du_permuted[jk, i, 3] += factor_i * f3
+      du_permuted[jk, i, 4] += factor_i * f4
+      du_permuted[jk, i, 5] += factor_i * f5
 
-      factor = alpha * derivative_split[ii, i]
-      du_permuted[jk, ii, 1] += factor * f1
-      du_permuted[jk, ii, 2] += factor * f2
-      du_permuted[jk, ii, 3] += factor * f3
-      du_permuted[jk, ii, 4] += factor * f4
-      du_permuted[jk, ii, 5] += factor * f5
+      factor_ii = alpha * derivative_split[ii, i]
+      du_permuted[jk, ii, 1] += factor_ii * f1
+      du_permuted[jk, ii, 2] += factor_ii * f2
+      du_permuted[jk, ii, 3] += factor_ii * f3
+      du_permuted[jk, ii, 4] += factor_ii * f4
+      du_permuted[jk, ii, 5] += factor_ii * f5
     end
   end
 
@@ -2290,19 +2299,19 @@ end
       f4 = f1 * v3_avg
       f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v2_rr + p_rr*v2_ll)
 
-      factor = alpha * derivative_split[j, jj]
-      du[i, j, k, 1] += factor * f1
-      du[i, j, k, 2] += factor * f2
-      du[i, j, k, 3] += factor * f3
-      du[i, j, k, 4] += factor * f4
-      du[i, j, k, 5] += factor * f5
+      factor_j = alpha * derivative_split[j, jj]
+      du[i, j, k, 1] += factor_j * f1
+      du[i, j, k, 2] += factor_j * f2
+      du[i, j, k, 3] += factor_j * f3
+      du[i, j, k, 4] += factor_j * f4
+      du[i, j, k, 5] += factor_j * f5
 
-      factor = alpha * derivative_split[jj, j]
-      du[i, jj, k, 1] += factor * f1
-      du[i, jj, k, 2] += factor * f2
-      du[i, jj, k, 3] += factor * f3
-      du[i, jj, k, 4] += factor * f4
-      du[i, jj, k, 5] += factor * f5
+      factor_jj = alpha * derivative_split[jj, j]
+      du[i, jj, k, 1] += factor_jj * f1
+      du[i, jj, k, 2] += factor_jj * f2
+      du[i, jj, k, 3] += factor_jj * f3
+      du[i, jj, k, 4] += factor_jj * f4
+      du[i, jj, k, 5] += factor_jj * f5
     end
   end
 
@@ -2373,19 +2382,19 @@ end
       f4 = f1 * v3_avg + p_avg
       f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v3_rr + p_rr*v3_ll)
 
-      factor = alpha * derivative_split[k, kk]
-      du_perm[ij, k, 1] += factor * f1
-      du_perm[ij, k, 2] += factor * f2
-      du_perm[ij, k, 3] += factor * f3
-      du_perm[ij, k, 4] += factor * f4
-      du_perm[ij, k, 5] += factor * f5
+      factor_k = alpha * derivative_split[k, kk]
+      du_perm[ij, k, 1] += factor_k * f1
+      du_perm[ij, k, 2] += factor_k * f2
+      du_perm[ij, k, 3] += factor_k * f3
+      du_perm[ij, k, 4] += factor_k * f4
+      du_perm[ij, k, 5] += factor_k * f5
 
-      factor = alpha * derivative_split[kk, k]
-      du_perm[ij, kk, 1] += factor * f1
-      du_perm[ij, kk, 2] += factor * f2
-      du_perm[ij, kk, 3] += factor * f3
-      du_perm[ij, kk, 4] += factor * f4
-      du_perm[ij, kk, 5] += factor * f5
+      factor_kk = alpha * derivative_split[kk, k]
+      du_perm[ij, kk, 1] += factor_kk * f1
+      du_perm[ij, kk, 2] += factor_kk * f2
+      du_perm[ij, kk, 3] += factor_kk * f3
+      du_perm[ij, kk, 4] += factor_kk * f4
+      du_perm[ij, kk, 5] += factor_kk * f5
     end
   end
 
