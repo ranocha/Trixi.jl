@@ -763,7 +763,7 @@ end
   du = StrideArray{eltype(u_cons)}(undef,
     (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
     StaticInt(nvariables(equations))))
-  fill!(du, zero(eltype(du))) # TODO: Can be removed
+  # fill!(du, zero(eltype(du))) # TODO: Can be removed
 
   @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
     rho    = u_cons[1, i, j, k, element]
@@ -1866,7 +1866,8 @@ end
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
     StaticInt(nvariables(equations))))
 
-  @turbo for v in indices((u_prim, u_prim_permuted), (4, 3)),
+  # @turbo for v in indices((u_prim, u_prim_permuted), (4, 3)), # doesn't work
+  @turbo for v in indices(u_prim, 4),
              k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
     jk = j + nnodes(dg) * (k- 1)
     u_prim_permuted[jk, i, v] = u_prim[i, j, k, v]
@@ -2146,7 +2147,8 @@ end
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
     StaticInt(nvariables(equations) + 2)))
 
-  @turbo for v in indices((u_prim, u_prim_permuted), (4, 3)),
+  # @turbo for v in indices((u_prim, u_prim_permuted), (4, 3)), # doesn't work
+  @turbo for v in indices(u_prim, 4),
              k in eachnode(dg),
              j in eachnode(dg),
              i in eachnode(dg)
@@ -2323,6 +2325,7 @@ end
   du_perm = PtrArray(pointer(du),
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
      StaticInt(nvariables(equations))))
+
   for k in eachnode(dg), kk in (k+1):nnodes(dg)
     @turbo for ij in Base.OneTo(nnodes(dg)^2)
     # @turbo for ij in Base.OneTo(nnodes(dg)^2)
