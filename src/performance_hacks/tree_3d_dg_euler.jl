@@ -741,6 +741,7 @@ end
 
 # pre-compute primitive variables and uses triangular loops without turbo
 # after permuting the memory layout
+# @inline function split_form_kernel!(_du, u_cons,
 @inline function flux_differencing_kernel_permuted!(_du, u_cons,
                                                     element, mesh::TreeMesh{3},
                                                     nonconservative_terms::Val{false},
@@ -2095,6 +2096,7 @@ end
 
 # pre-compute primitive variables, uses triangular loops without turbo
 # after permuting the memory layout, and pre-computes logs
+# @inline function split_form_kernel!(_du, u_cons,
 @inline function flux_differencing_kernel_permuted_log!(_du, u_cons,
                                                     element, mesh::TreeMesh{3},
                                                     nonconservative_terms::Val{false},
