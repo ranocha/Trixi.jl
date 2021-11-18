@@ -72,6 +72,15 @@ end
   )
 end
 
+@inline function ln_mean(x, log_x, y, log_y)
+  epsilon_f2 = 1.0e-4
+  f2 = (x * (x - 2 * y) + y * y) / (x * (x + 2 * y) + y * y) # f2 = f^2
+  ifelse(f2 < epsilon_f2,
+    (x + y) / @evalpoly(f2, 2, 2/3, 2/5, 2/7),
+    (y - x) / (log_y - log_x)
+  )
+end
+
 """
     inv_ln_mean(x, y)
 
@@ -98,6 +107,15 @@ end
   ifelse(f2 < epsilon_f2,
     @evalpoly(f2, 2, 2/3, 2/5, 2/7) / (x + y),
     log(y / x) / (y - x)
+  )
+end
+
+@inline function inv_ln_mean(x, log_x, y, log_y)
+  epsilon_f2 = 1.0e-4
+  f2 = (x * (x - 2 * y) + y * y) / (x * (x + 2 * y) + y * y) # f2 = f^2
+  ifelse(f2 < epsilon_f2,
+    @evalpoly(f2, 2, 2/3, 2/5, 2/7) / (x + y),
+    (log_y - log_x) / (y - x)
   )
 end
 
