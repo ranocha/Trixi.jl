@@ -149,16 +149,17 @@ using Plots
 let results = results_shima_etal
   fig_abs = scatter(results[:, 1], results[:, 2], label="Baseline",
     xguide="Polynomial degree", yguide="Runtime", yscale=:log10, legend=:bottomright);
-    scatter!(results[:, 1], results[:, 3], label="Turbo");
-    scatter!(results[:, 1], results[:, 5], label="Primitive variables");
-    scatter!(results[:, 1], results[:, 7], label="Rearranged");
+    scatter!(results[:, 1], results[:, 3], label="Turbo")
+    scatter!(results[:, 1], results[:, 5], label="Primitive variables")
+    scatter!(results[:, 1], results[:, 7], label="Rearranged")
     scatter!(results[:, 1], results[:, 9], label="Permuted")
   fig_rel = scatter(results[:, 1], results[:, 4], label="Turbo",
-    xguide="Polynomial degree", yguide="Relative runtime");
-    scatter!(results[:, 1], results[:, 6], label="Primitive variables");
-    scatter!(results[:, 1], results[:, 8], label="Rearranged");
+    xguide="Polynomial degree", yguide="Relative runtime")
+    scatter!(results[:, 1], results[:, 6], label="Primitive variables")
+    scatter!(results[:, 1], results[:, 8], label="Rearranged")
     scatter!(results[:, 1], results[:, 10], label="Permuted")
-  plot(fig_abs, fig_rel, layout=(2,1))
+    plot!(yrange=(0.2, 1.1))
+  plot(fig_abs, fig_rel, layout=(2,1), dpi=300)
 end
 
 
@@ -238,14 +239,15 @@ results_ranocha = run_benchmarks_ranocha(1:15)
 let results = results_ranocha
   fig_abs = scatter(results[:, 1], results[:, 2], label="Baseline",
     xguide="Polynomial degree", yguide="Runtime", yscale=:log10, legend=:bottomright);
-    # scatter!(results[:, 1], results[:, 3], label="Turbo");
-    scatter!(results[:, 1], results[:, 5], label="Permuted");
+    # scatter!(results[:, 1], results[:, 3], label="Turbo")
+    scatter!(results[:, 1], results[:, 5], label="Permuted")
     scatter!(results[:, 1], results[:, 7], label="Permuted, log")
   fig_rel = plot(xguide="Polynomial degree", yguide="Relative runtime")
-    # scatter!(results[:, 1], results[:, 4], label="Turbo");
-    scatter!(results[:, 1], results[:, 6], label="Permuted");
+    # scatter!(results[:, 1], results[:, 4], label="Turbo")
+    scatter!(results[:, 1], results[:, 6], label="Permuted")
     scatter!(results[:, 1], results[:, 8], label="Permuted, log")
-  plot(fig_abs, fig_rel, layout=(2,1))
+    plot!(yrange=(0.2, 1.1))
+  plot(fig_abs, fig_rel, layout=(2,1), dpi=300)
 end
 
 =#
