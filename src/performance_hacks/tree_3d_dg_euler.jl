@@ -73,7 +73,7 @@ function run_benchmarks_shima_etal(polydegs)
     @show polydeg
 
     redirect_stdout(devnull) do
-      trixi_include("examples/tree_3d_dgsem/elixir_euler_ec.jl",
+      trixi_include(joinpath(examples_dir(), "tree_3d_dgsem", "elixir_euler_ec.jl"),
         volume_flux=flux_shima_etal, surface_flux=flux_shima_etal,
         tspan=(0.0, 0.0), initial_refinement_level=0,
         polydeg=polydeg)
@@ -172,7 +172,7 @@ function run_benchmarks_ranocha(polydegs)
     @show polydeg
 
     redirect_stdout(devnull) do
-      trixi_include("examples/tree_3d_dgsem/elixir_euler_ec.jl",
+      trixi_include(joinpath(examples_dir(), "tree_3d_dgsem", "elixir_euler_ec.jl"),
         volume_flux=flux_ranocha, surface_flux=flux_ranocha,
         tspan=(0.0, 0.0), initial_refinement_level=0,
         polydeg=polydeg)
