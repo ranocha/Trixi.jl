@@ -159,7 +159,7 @@ let results = results_shima_etal
     scatter!(results[:, 1], results[:, 8], label="Rearranged")
     scatter!(results[:, 1], results[:, 10], label="Permuted")
     plot!(yrange=(0.2, 1.1))
-  plot(fig_abs, fig_rel, layout=(2,1), dpi=300)
+  plot(fig_abs, fig_rel, layout=(2,1), dpi=300, title="Shima et al.")
 end
 
 
@@ -247,7 +247,7 @@ let results = results_ranocha
     scatter!(results[:, 1], results[:, 6], label="Permuted")
     scatter!(results[:, 1], results[:, 8], label="Permuted, log")
     plot!(yrange=(0.2, 1.1))
-  plot(fig_abs, fig_rel, layout=(2,1), dpi=300)
+  plot(fig_abs, fig_rel, layout=(2,1), dpi=300, title="EC flux")
 end
 
 =#
