@@ -1,4 +1,77 @@
 
+#=
+
+function run_benchmarks_shima_etal(polydegs)
+  baseline = Vector{Float64}()
+  permuted = Vector{Float64}()
+
+  for polydeg in polydegs
+    @show polydeg
+
+    redirect_stdout(devnull) do
+      trixi_include(joinpath(examples_dir(), "structured_3d_dgsem", "elixir_euler_ec.jl"),
+        volume_flux=flux_shima_etal, surface_flux=flux_shima_etal,
+        tspan=(0.0, 0.0), cells_per_dimension=(1, 1, 1),
+        polydeg=polydeg)
+    end
+    u_ode = copy(ode.u0)
+    du_ode = zero(u_ode)
+
+    GC.@preserve u_ode du_ode begin
+      u = Trixi.wrap_array(u_ode, semi)
+      du = Trixi.wrap_array(du_ode, semi)
+
+      result = @benchmark Trixi.split_form_kernel!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(baseline, time(minimum(result)))
+
+      result = @benchmark Trixi.flux_differencing_kernel_permuted!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(permuted, time(minimum(result)))
+    end
+  end
+
+  hcat(polydegs, baseline,
+       permuted, permuted ./ baseline)
+end
+
+results_shima_etal = run_benchmarks_shima_etal(1:15)
+# 15×4 Matrix{Float64}:
+#   1.0     220.77     160.966  0.729112
+#   2.0    1020.1      511.594  0.501513
+#   3.0    3125.75    1073.9    0.343566
+#   4.0    7580.75    3198.25   0.421891
+#   5.0   15747.0     5709.17   0.362556
+#   6.0   29120.0    11502.0    0.394986
+#   7.0   49876.0    19443.0    0.389827
+#   8.0   80628.0    30683.0    0.38055
+#   9.0  124761.0    45374.0    0.363687
+#  10.0  187370.0    70199.0    0.374654
+#  11.0  257747.0    89271.0    0.346351
+#  12.0  368058.0   140885.0    0.382779
+#  13.0  488652.0   181817.0    0.372079
+#  14.0  652503.0   254041.0    0.389333
+#  15.0  887587.0   532083.0    0.599471
+
+let results = results_shima_etal
+  fig_abs = plot(xguide="Polynomial degree", yguide="Runtime",
+                 yscale=:log10, legend=:bottomright)
+    scatter!(results[:, 1], results[:, 3], label="Permuted")
+    scatter!(results[:, 1], results[:, 2], label="Baseline")
+  fig_rel = plot(xguide="Polynomial degree", yguide="Relative runtime")
+    scatter!(results[:, 1], results[:, 4], label="Permuted")
+    plot!(yrange=(0.2, 1.1))
+  plot(fig_abs, fig_rel, layout=(2,1), dpi=300, title="Shima et al. (curved)")
+end
+
+
+=#
+
+
 # pre-compute primitive variables and uses triangular loops without turbo
 # after permuting the memory layout
 # @inline function split_form_kernel!(_du, u_cons,
