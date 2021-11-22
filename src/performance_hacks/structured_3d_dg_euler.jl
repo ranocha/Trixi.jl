@@ -62,13 +62,13 @@
   fill!(du_permuted, zero(eltype(du_permuted)))
 
   contravariant_vectors_x = StrideArray{eltype(contravariant_vectors)}(undef,
-    (StaticInt(nnodes(dg)), StaticInt(nnodes(dg)^2),
-    StaticInt(ndims(mesh))))
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+     StaticInt(ndims(mesh))))
   @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
     jk = j + nnodes(dg) * (k- 1)
-    contravariant_vectors_x[i, jk, 1] = contravariant_vectors[1, 1, i, j, k, element]
-    contravariant_vectors_x[i, jk, 2] = contravariant_vectors[2, 1, i, j, k, element]
-    contravariant_vectors_x[i, jk, 3] = contravariant_vectors[3, 1, i, j, k, element]
+    contravariant_vectors_x[jk, i, 1] = contravariant_vectors[1, 1, i, j, k, element]
+    contravariant_vectors_x[jk, i, 2] = contravariant_vectors[2, 1, i, j, k, element]
+    contravariant_vectors_x[jk, i, 3] = contravariant_vectors[3, 1, i, j, k, element]
   end
 
   for i in eachnode(dg), ii in (i+1):nnodes(dg)
@@ -86,11 +86,11 @@
       p_rr   = u_prim_permuted[jk, ii, 5]
 
       normal_direction_1 = 0.5 * (
-        contravariant_vectors_x[i, jk, 1] + contravariant_vectors_x[ii, jk, 1])
+        contravariant_vectors_x[jk, i, 1] + contravariant_vectors_x[jk, ii, 1])
       normal_direction_2 = 0.5 * (
-        contravariant_vectors_x[i, jk, 2] + contravariant_vectors_x[ii, jk, 2])
+        contravariant_vectors_x[jk, i, 2] + contravariant_vectors_x[jk, ii, 2])
       normal_direction_3 = 0.5 * (
-        contravariant_vectors_x[i, jk, 3] + contravariant_vectors_x[ii, jk, 3])
+        contravariant_vectors_x[jk, i, 3] + contravariant_vectors_x[jk, ii, 3])
 
       v_dot_n_ll = v1_ll * normal_direction_1 + v2_ll * normal_direction_2 + v3_ll * normal_direction_3
       v_dot_n_rr = v1_rr * normal_direction_1 + v2_rr * normal_direction_2 + v3_rr * normal_direction_3
@@ -141,7 +141,7 @@
   # y direction
   contravariant_vectors_y = StrideArray{eltype(contravariant_vectors)}(undef,
     (StaticInt(nnodes(dg)), StaticInt(nnodes(dg)), StaticInt(nnodes(dg)),
-    StaticInt(ndims(mesh))))
+     StaticInt(ndims(mesh))))
   @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
     contravariant_vectors_y[i, j, k, 1] = contravariant_vectors[1, 2, i, j, k, element]
     contravariant_vectors_y[i, j, k, 2] = contravariant_vectors[2, 2, i, j, k, element]
@@ -219,7 +219,7 @@
 
     contravariant_vectors_z = StrideArray{eltype(contravariant_vectors)}(undef,
       (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-      StaticInt(ndims(mesh))))
+       StaticInt(ndims(mesh))))
     @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
       ij = i + nnodes(dg) * (j- 1)
       contravariant_vectors_z[ij, k, 1] = contravariant_vectors[1, 3, i, j, k, element]
