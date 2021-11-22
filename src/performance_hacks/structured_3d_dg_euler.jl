@@ -120,11 +120,11 @@ end
   # x direction
   du_permuted = StrideArray{eltype(u_cons)}(undef,
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-    StaticInt(nvariables(equations))))
+     StaticInt(nvariables(equations))))
 
   u_prim_permuted = StrideArray{eltype(u_cons)}(undef,
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-    StaticInt(nvariables(equations))))
+     StaticInt(nvariables(equations))))
 
   @turbo for v in eachvariable(equations),
              k in eachnode(dg),
@@ -285,11 +285,11 @@ end
   GC.@preserve u_prim begin
     u_prim_perm = PtrArray(pointer(u_prim),
       (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-      StaticInt(nvariables(equations))))
+       StaticInt(nvariables(equations))))
 
     du_perm = PtrArray(pointer(du),
       (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-      StaticInt(nvariables(equations))))
+       StaticInt(nvariables(equations))))
 
     contravariant_vectors_z = StrideArray{eltype(contravariant_vectors)}(undef,
       (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
@@ -371,9 +371,6 @@ end
 
 
 #=
-
-
-
 
 function run_benchmarks_ranocha(polydegs)
   baseline = Vector{Float64}()
@@ -457,11 +454,11 @@ end
 
   u_prim = StrideArray{eltype(u_cons)}(undef,
     (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
-    StaticInt(nvariables(equations) + 2))) # We also compute logs
+     StaticInt(nvariables(equations) + 2))) # We also compute logs
 
   du = StrideArray{eltype(u_cons)}(undef,
     (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
-    StaticInt(nvariables(equations))))
+     StaticInt(nvariables(equations))))
   # fill!(du, zero(eltype(du))) # TODO: Can be removed
 
   @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
@@ -489,11 +486,11 @@ end
   # x direction
   du_permuted = StrideArray{eltype(u_cons)}(undef,
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-    StaticInt(nvariables(equations))))
+     StaticInt(nvariables(equations))))
 
   u_prim_permuted = StrideArray{eltype(u_cons)}(undef,
     (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-    StaticInt(nvariables(equations) + 2)))
+     StaticInt(nvariables(equations) + 2)))
 
   @turbo for v in indices(u_prim, 4),
              k in eachnode(dg),
@@ -714,11 +711,11 @@ end
   GC.@preserve u_prim begin
     u_prim_perm = PtrArray(pointer(u_prim),
       (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-      StaticInt(nvariables(equations) + 2)))
+       StaticInt(nvariables(equations) + 2)))
 
     du_perm = PtrArray(pointer(du),
       (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
-      StaticInt(nvariables(equations))))
+       StaticInt(nvariables(equations))))
 
     contravariant_vectors_z = StrideArray{eltype(contravariant_vectors)}(undef,
       (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
