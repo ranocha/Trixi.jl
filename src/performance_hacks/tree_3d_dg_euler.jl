@@ -167,6 +167,7 @@ function run_benchmarks_ranocha(polydegs)
   baseline = Vector{Float64}()
   turbo_on = Vector{Float64}()
   permuted = Vector{Float64}()
+  permuted_log_rho_p = Vector{Float64}()
   permuted_log = Vector{Float64}()
 
   for polydeg in polydegs
@@ -203,6 +204,12 @@ function run_benchmarks_ranocha(polydegs)
         $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
       push!(permuted, time(minimum(result)))
 
+      result = @benchmark Trixi.flux_differencing_kernel_permuted_log_rho_p!(
+        $du, $u, $(Ref(1))[], $(semi.mesh),
+        $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
+        $(semi.solver.volume_integral.volume_flux), $(semi.solver), $(semi.cache))
+      push!(permuted_log_rho_p, time(minimum(result)))
+
       result = @benchmark Trixi.flux_differencing_kernel_permuted_log!(
         $du, $u, $(Ref(1))[], $(semi.mesh),
         $(Trixi.have_nonconservative_terms(semi.equations)), $(semi.equations),
@@ -214,26 +221,19 @@ function run_benchmarks_ranocha(polydegs)
   hcat(polydegs, baseline,
        turbo_on, turbo_on ./ baseline,
        permuted, permuted ./ baseline,
+       permuted_log_rho_p, permuted_log_rho_p ./ baseline,
        permuted_log, permuted_log ./ baseline)
 end
 
 results_ranocha = run_benchmarks_ranocha(1:15)
-# 15×8 Matrix{Float64}:
-#   1.0     211.469        781.806      3.69703     209.395  0.990196     218.123  1.03147
-#   2.0    1215.9         2602.78       2.14062    1009.3    0.830085     722.0    0.593799
-#   3.0    3792.75        5997.2        1.58123    2395.11   0.631497    1654.8    0.436306
-#   4.0    9738.0        22501.0        2.31064    7697.5    0.79046     5141.0    0.527932
-#   5.0   19710.0        38698.0        1.96337   14458.0    0.733536    8890.67   0.451074
-#   6.0   37605.0        61689.0        1.64045   27420.0    0.729158   15908.0    0.423029
-#   7.0   65388.0        91898.0        1.40543   42333.0    0.647412   24275.0    0.371245
-#   8.0  105073.0       192803.0        1.83494   78380.0    0.745958   44343.0    0.422021
-#   9.0  161016.0       264662.0        1.6437   111650.0    0.693409   63617.0    0.395097
-#  10.0  238000.0       352505.0        1.48111  171410.0    0.72021    99934.0    0.419891
-#  11.0  336875.0       458531.0        1.36113  217157.0    0.644622  119365.0    0.35433
-#  12.0  470004.0       768263.0        1.63459  339150.0    0.72159   179664.0    0.382261
-#  13.0  627736.0       960149.0        1.52954  436179.0    0.694845  237223.0    0.377902
-#  14.0  832863.0            1.1807e6   1.41764  594948.0    0.714341  307930.0    0.369725
-#  15.0       1.1499e6       1.44184e6  1.25388  812283.0    0.706392  505359.0    0.439479
+# 7×10 Matrix{Float64}:
+#  1.0    214.105    782.738  3.65586    209.644  0.979165    217.184  1.01438     204.949  0.957238
+#  2.0   1219.2     2614.89   2.14476   1003.4    0.822999    729.007  0.597939    668.925  0.548659
+#  3.0   3762.5     5994.4    1.5932    2395.0    0.636545   1651.3    0.438884   1371.8    0.364598
+#  4.0   9754.0    22494.0    2.30613   7877.5    0.807617   4956.57   0.508158   4310.86   0.441958
+#  5.0  19722.0    38774.0    1.96603  14447.0    0.732532   8892.33   0.450884   7514.5    0.381021
+#  6.0  39023.0    63195.0    1.61943  27101.0    0.694488  15641.0    0.400815  13578.0    0.347949
+#  7.0  64554.0    91743.0    1.42118  42108.0    0.652291  24063.0    0.372758  20495.0    0.317486
 
 
 let results = results_ranocha
@@ -241,11 +241,13 @@ let results = results_ranocha
     xguide="Polynomial degree", yguide="Runtime", yscale=:log10, legend=:bottomright);
     # scatter!(results[:, 1], results[:, 3], label="Turbo")
     scatter!(results[:, 1], results[:, 5], label="Permuted")
-    scatter!(results[:, 1], results[:, 7], label="Permuted, log")
+    scatter!(results[:, 1], results[:, 7], label="Permuted, log, rho/p")
+    scatter!(results[:, 1], results[:, 9], label="Permuted, log")
   fig_rel = plot(xguide="Polynomial degree", yguide="Relative runtime")
     # scatter!(results[:, 1], results[:, 4], label="Turbo")
     scatter!(results[:, 1], results[:, 6], label="Permuted")
-    scatter!(results[:, 1], results[:, 8], label="Permuted, log")
+    scatter!(results[:, 1], results[:, 8], label="Permuted, log, rho/p")
+    scatter!(results[:, 1], results[:, 10], label="Permuted, log")
     plot!(yrange=(0.2, 1.1))
   plot(fig_abs, fig_rel, layout=(2,1), dpi=300, title="EC flux")
 end
@@ -2200,7 +2202,7 @@ end
 # pre-compute primitive variables, uses triangular loops without turbo
 # after permuting the memory layout, and pre-computes logs
 # @inline function split_form_kernel!(_du, u_cons,
-@inline function flux_differencing_kernel_permuted_log!(_du, u_cons,
+@inline function flux_differencing_kernel_permuted_log_rho_p!(_du, u_cons,
                                                     element, mesh::TreeMesh{3},
                                                     nonconservative_terms::Val{false},
                                                     equations::CompressibleEulerEquations3D,
@@ -2477,6 +2479,324 @@ end
       special_path2 = (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1))) / (x2 + y2)
       regular_path2 = (log_y2 - log_x2) / (y2 - x2)
       inv_rho_p_mean = ifelse(z2 < 1.0e-4, special_path2, regular_path2)
+
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v3_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg + p_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v3_rr + p_rr*v3_ll)
+
+      factor_k = alpha * derivative_split[k, kk]
+      du_perm[ij, k, 1] += factor_k * f1
+      du_perm[ij, k, 2] += factor_k * f2
+      du_perm[ij, k, 3] += factor_k * f3
+      du_perm[ij, k, 4] += factor_k * f4
+      du_perm[ij, k, 5] += factor_k * f5
+
+      factor_kk = alpha * derivative_split[kk, k]
+      du_perm[ij, kk, 1] += factor_kk * f1
+      du_perm[ij, kk, 2] += factor_kk * f2
+      du_perm[ij, kk, 3] += factor_kk * f3
+      du_perm[ij, kk, 4] += factor_kk * f4
+      du_perm[ij, kk, 5] += factor_kk * f5
+    end
+  end
+
+
+  @turbo for v in eachvariable(equations),
+             k in eachnode(dg),
+             j in eachnode(dg),
+             i in eachnode(dg)
+    _du[v, i, j, k, element] += du[i, j, k, v]
+  end
+end
+
+# pre-compute primitive variables, uses triangular loops without turbo
+# after permuting the memory layout, and pre-computes logs
+# @inline function split_form_kernel!(_du, u_cons,
+@inline function flux_differencing_kernel_permuted_log!(_du, u_cons,
+                                                    element, mesh::TreeMesh{3},
+                                                    nonconservative_terms::Val{false},
+                                                    equations::CompressibleEulerEquations3D,
+                                                    volume_flux::typeof(flux_ranocha),
+                                                    dg::DGSEM, cache,
+                                                    alpha=true)
+  # true * [some floating point value] == [exactly the same floating point value]
+  # This can (hopefully) be optimized away due to constant propagation.
+  @unpack derivative_split, derivative_split_transpose = dg.basis
+
+
+  u_prim = StrideArray{eltype(u_cons)}(undef,
+    (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
+    StaticInt(nvariables(equations) + 2))) # We also compute logs
+
+  du = StrideArray{eltype(u_cons)}(undef,
+    (ntuple(_ -> StaticInt(nnodes(dg)), ndims(mesh))...,
+    StaticInt(nvariables(equations))))
+  # fill!(du, zero(eltype(du))) # TODO: Can be removed
+
+  @turbo for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+    rho    = u_cons[1, i, j, k, element]
+    rho_v1 = u_cons[2, i, j, k, element]
+    rho_v2 = u_cons[3, i, j, k, element]
+    rho_v3 = u_cons[4, i, j, k, element]
+    rho_e  = u_cons[5, i, j, k, element]
+
+    v1 = rho_v1 / rho
+    v2 = rho_v2 / rho
+    v3 = rho_v3 / rho
+    p = (equations.gamma - 1) * (rho_e - 0.5 * (rho_v1 * v1 + rho_v2 * v2 + rho_v3 * v3))
+
+    u_prim[i, j, k, 1] = rho
+    u_prim[i, j, k, 2] = v1
+    u_prim[i, j, k, 3] = v2
+    u_prim[i, j, k, 4] = v3
+    u_prim[i, j, k, 5] = p
+    u_prim[i, j, k, 6] = log(rho)
+    u_prim[i, j, k, 7] = log(p)
+  end
+
+
+  # x direction
+  du_permuted = StrideArray{eltype(u_cons)}(undef,
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+    StaticInt(nvariables(equations))))
+
+  u_prim_permuted = StrideArray{eltype(u_cons)}(undef,
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+    StaticInt(nvariables(equations) + 2)))
+
+  # @turbo for v in indices((u_prim, u_prim_permuted), (4, 3)), # doesn't work
+  @turbo for v in indices(u_prim, 4),
+             k in eachnode(dg),
+             j in eachnode(dg),
+             i in eachnode(dg)
+    jk = j + nnodes(dg) * (k- 1)
+    u_prim_permuted[jk, i, v] = u_prim[i, j, k, v]
+  end
+  fill!(du_permuted, zero(eltype(du_permuted)))
+
+  for i in eachnode(dg), ii in (i+1):nnodes(dg)
+    @turbo for jk in Base.OneTo(nnodes(dg)^2)
+    # @turbo for jk in indices((du_permuted, u_prim_permuted), 1)
+      rho_ll = u_prim_permuted[jk, i, 1]
+      v1_ll  = u_prim_permuted[jk, i, 2]
+      v2_ll  = u_prim_permuted[jk, i, 3]
+      v3_ll  = u_prim_permuted[jk, i, 4]
+      p_ll   = u_prim_permuted[jk, i, 5]
+      log_rho_ll = u_prim_permuted[jk, i, 6]
+      log_p_ll   = u_prim_permuted[jk, i, 7]
+
+      rho_rr = u_prim_permuted[jk, ii, 1]
+      v1_rr  = u_prim_permuted[jk, ii, 2]
+      v2_rr  = u_prim_permuted[jk, ii, 3]
+      v3_rr  = u_prim_permuted[jk, ii, 4]
+      p_rr   = u_prim_permuted[jk, ii, 5]
+      log_rho_rr = u_prim_permuted[jk, ii, 6]
+      log_p_rr   = u_prim_permuted[jk, ii, 7]
+
+      # Compute the necessary mean values
+      # rho_mean = ln_mean(rho_ll, rho_rr)
+      # rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      x1 = rho_ll
+      log_x1 = log_rho_ll
+      y1 = rho_rr
+      log_y1 = log_rho_rr
+      z1 = (x1 * (x1 - 2 * y1) + y1 * y1) / (x1 * (x1 + 2 * y1) + y1 * y1)
+      special_path1 = (x1 + y1) / (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1)))
+      regular_path1 = (y1 - x1) / (log_y1 - log_x1)
+      rho_mean = ifelse(z1 < 1.0e-4, special_path1, regular_path1)
+
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      # inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      # inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
+      #                              rho_rr / p_rr, log_rho_p_rr)
+      x2 = rho_ll * p_rr
+      log_x2 = log_rho_ll + log_p_rr
+      y2 = rho_rr * p_ll
+      log_y2 = log_rho_rr + log_p_ll
+      z2 = (x2 * (x2 - 2 * y2) + y2 * y2) / (x2 * (x2 + 2 * y2) + y2 * y2)
+      special_path2 = (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1))) / (x2 + y2)
+      regular_path2 = (log_y2 - log_x2) / (y2 - x2)
+      inv_rho_p_mean = p_ll * p_rr * ifelse(z2 < 1.0e-4, special_path2, regular_path2)
+
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v1_avg
+      f2 = f1 * v1_avg + p_avg
+      f3 = f1 * v2_avg
+      f4 = f1 * v3_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v1_rr + p_rr*v1_ll)
+
+      factor_i = alpha * derivative_split[i, ii]
+      du_permuted[jk, i, 1] += factor_i * f1
+      du_permuted[jk, i, 2] += factor_i * f2
+      du_permuted[jk, i, 3] += factor_i * f3
+      du_permuted[jk, i, 4] += factor_i * f4
+      du_permuted[jk, i, 5] += factor_i * f5
+
+      factor_ii = alpha * derivative_split[ii, i]
+      du_permuted[jk, ii, 1] += factor_ii * f1
+      du_permuted[jk, ii, 2] += factor_ii * f2
+      du_permuted[jk, ii, 3] += factor_ii * f3
+      du_permuted[jk, ii, 4] += factor_ii * f4
+      du_permuted[jk, ii, 5] += factor_ii * f5
+    end
+  end
+
+  @turbo for v in eachvariable(equations),
+             k in eachnode(dg),
+             j in eachnode(dg),
+             i in eachnode(dg)
+    jk = j + nnodes(dg) * (k- 1)
+    du[i, j, k, v] = du_permuted[jk, i, v]
+  end
+
+
+  # y direction
+  for j in eachnode(dg), jj in (j+1):nnodes(dg)
+    @turbo for k in eachnode(dg), i in eachnode(dg)
+    # @turbo for k in eachnode(dg), i in eachnode(dg)
+      rho_ll = u_prim[i, j, k, 1]
+      v1_ll  = u_prim[i, j, k, 2]
+      v2_ll  = u_prim[i, j, k, 3]
+      v3_ll  = u_prim[i, j, k, 4]
+      p_ll   = u_prim[i, j, k, 5]
+      log_rho_ll = u_prim[i, j, k, 6]
+      log_p_ll   = u_prim[i, j, k, 7]
+
+      rho_rr = u_prim[i, jj, k, 1]
+      v1_rr  = u_prim[i, jj, k, 2]
+      v2_rr  = u_prim[i, jj, k, 3]
+      v3_rr  = u_prim[i, jj, k, 4]
+      p_rr   = u_prim[i, jj, k, 5]
+      log_rho_rr = u_prim[i, jj, k, 6]
+      log_p_rr   = u_prim[i, jj, k, 7]
+
+      # Compute the necessary mean values
+      # rho_mean = ln_mean(rho_ll, rho_rr)
+      # rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      x1 = rho_ll
+      log_x1 = log_rho_ll
+      y1 = rho_rr
+      log_y1 = log_rho_rr
+      z1 = (x1 * (x1 - 2 * y1) + y1 * y1) / (x1 * (x1 + 2 * y1) + y1 * y1)
+      special_path1 = (x1 + y1) / (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1)))
+      regular_path1 = (y1 - x1) / (log_y1 - log_x1)
+      rho_mean = ifelse(z1 < 1.0e-4, special_path1, regular_path1)
+
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      # inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      # inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
+      #                              rho_rr / p_rr, log_rho_p_rr)
+      x2 = rho_ll * p_rr
+      log_x2 = log_rho_ll + log_p_rr
+      y2 = rho_rr * p_ll
+      log_y2 = log_rho_rr + log_p_ll
+      z2 = (x2 * (x2 - 2 * y2) + y2 * y2) / (x2 * (x2 + 2 * y2) + y2 * y2)
+      special_path2 = (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1))) / (x2 + y2)
+      regular_path2 = (log_y2 - log_x2) / (y2 - x2)
+      inv_rho_p_mean = p_ll * p_rr * ifelse(z2 < 1.0e-4, special_path2, regular_path2)
+
+      v1_avg = 0.5 * (v1_ll + v1_rr)
+      v2_avg = 0.5 * (v2_ll + v2_rr)
+      v3_avg = 0.5 * (v3_ll + v3_rr)
+      p_avg  = 0.5 * (p_ll + p_rr)
+      velocity_square_avg = 0.5 * (v1_ll*v1_rr + v2_ll*v2_rr + v3_ll*v3_rr)
+
+      f1 = rho_mean * v2_avg
+      f2 = f1 * v1_avg
+      f3 = f1 * v2_avg + p_avg
+      f4 = f1 * v3_avg
+      f5 = f1 * ( velocity_square_avg + inv_rho_p_mean * equations.inv_gamma_minus_one ) + 0.5 * (p_ll*v2_rr + p_rr*v2_ll)
+
+      factor_j = alpha * derivative_split[j, jj]
+      du[i, j, k, 1] += factor_j * f1
+      du[i, j, k, 2] += factor_j * f2
+      du[i, j, k, 3] += factor_j * f3
+      du[i, j, k, 4] += factor_j * f4
+      du[i, j, k, 5] += factor_j * f5
+
+      factor_jj = alpha * derivative_split[jj, j]
+      du[i, jj, k, 1] += factor_jj * f1
+      du[i, jj, k, 2] += factor_jj * f2
+      du[i, jj, k, 3] += factor_jj * f3
+      du[i, jj, k, 4] += factor_jj * f4
+      du[i, jj, k, 5] += factor_jj * f5
+    end
+  end
+
+
+  # z direction
+  u_prim_perm = PtrArray(pointer(u_prim),
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+     StaticInt(nvariables(equations) + 2)))
+  du_perm = PtrArray(pointer(du),
+    (StaticInt(nnodes(dg)^2), StaticInt(nnodes(dg)),
+     StaticInt(nvariables(equations))))
+
+  for k in eachnode(dg), kk in (k+1):nnodes(dg)
+    @turbo for ij in Base.OneTo(nnodes(dg)^2)
+    # @turbo for ij in Base.OneTo(nnodes(dg)^2)
+      rho_ll = u_prim_perm[ij, k, 1]
+      v1_ll  = u_prim_perm[ij, k, 2]
+      v2_ll  = u_prim_perm[ij, k, 3]
+      v3_ll  = u_prim_perm[ij, k, 4]
+      p_ll   = u_prim_perm[ij, k, 5]
+      log_rho_ll = u_prim_perm[ij, k, 6]
+      log_p_ll   = u_prim_perm[ij, k, 7]
+
+      rho_rr = u_prim_perm[ij, kk, 1]
+      v1_rr  = u_prim_perm[ij, kk, 2]
+      v2_rr  = u_prim_perm[ij, kk, 3]
+      v3_rr  = u_prim_perm[ij, kk, 4]
+      p_rr   = u_prim_perm[ij, kk, 5]
+      log_rho_rr = u_prim_perm[ij, kk, 6]
+      log_p_rr   = u_prim_perm[ij, kk, 7]
+
+      # Compute the necessary mean values
+      # rho_mean = ln_mean(rho_ll, rho_rr)
+      # rho_mean = ln_mean(rho_ll, log_rho_ll, rho_rr, log_rho_rr)
+      x1 = rho_ll
+      log_x1 = log_rho_ll
+      y1 = rho_rr
+      log_y1 = log_rho_rr
+      z1 = (x1 * (x1 - 2 * y1) + y1 * y1) / (x1 * (x1 + 2 * y1) + y1 * y1)
+      special_path1 = (x1 + y1) / (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1)))
+      regular_path1 = (y1 - x1) / (log_y1 - log_x1)
+      rho_mean = ifelse(z1 < 1.0e-4, special_path1, regular_path1)
+
+      # Algebraically equivalent to `inv_ln_mean(rho_ll / p_ll, rho_rr / p_rr)`
+      # in exact arithmetic since
+      #     log((ϱₗ/pₗ) / (ϱᵣ/pᵣ)) / (ϱₗ/pₗ - ϱᵣ/pᵣ)
+      #   = pₗ pᵣ log((ϱₗ pᵣ) / (ϱᵣ pₗ)) / (ϱₗ pᵣ - ϱᵣ pₗ)
+      # inv_rho_p_mean = p_ll * p_rr * inv_ln_mean(rho_ll * p_rr, rho_rr * p_ll)
+      # inv_rho_p_mean = inv_ln_mean(rho_ll / p_ll, log_rho_p_ll,
+      #                              rho_rr / p_rr, log_rho_p_rr)
+      x2 = rho_ll * p_rr
+      log_x2 = log_rho_ll + log_p_rr
+      y2 = rho_rr * p_ll
+      log_y2 = log_rho_rr + log_p_ll
+      z2 = (x2 * (x2 - 2 * y2) + y2 * y2) / (x2 * (x2 + 2 * y2) + y2 * y2)
+      special_path2 = (2 + z1*(0.666666666666667 + z1*(0.4 + 0.285714285714286*z1))) / (x2 + y2)
+      regular_path2 = (log_y2 - log_x2) / (y2 - x2)
+      inv_rho_p_mean = p_ll * p_rr * ifelse(z2 < 1.0e-4, special_path2, regular_path2)
 
       v1_avg = 0.5 * (v1_ll + v1_rr)
       v2_avg = 0.5 * (v2_ll + v2_rr)
