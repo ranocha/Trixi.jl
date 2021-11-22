@@ -112,6 +112,7 @@ include("auxiliary/special_elixirs.jl")
 include("visualization/visualization.jl")
 
 include("performance_hacks/tree_3d_dg_euler.jl")
+include("performance_hacks/structured_3d_dg_euler.jl")
 
 # export types/functions that define the public API of Trixi
 
