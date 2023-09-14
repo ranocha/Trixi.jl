@@ -10,7 +10,13 @@ equations = CompressibleEulerEquations2D(1.4)
 """
     initial_condition_warm_rising_bubble(x, t, equations::CompressibleEulerEquations2D)
 
-The warm rising bubble test taken from
+The warm rising bubble test ("test case 2") taken from
+- Francis X. Giraldo, M. Restelli (2008)
+  A study of spectral element and discontinuous Galerkin methods for the Navier-Stokes
+  equations in nonhydrostatic mesoscale atmospheric modeling: Equation sets and test cases
+  [DOI: 10.1016/j.jcp.2007.12.009](https://doi.org/10.1016/j.jcp.2007.12.009)
+
+See also
 - Maciej Waruszewski, Jeremy E. Kozdon, Lucas C. Wilcox, Thomas H. Gibson,
   Francis X. Giraldo (2022)
   Entropy stable discontinuous Galerkin methods for balance laws in
@@ -27,17 +33,17 @@ function initial_condition_warm_rising_bubble(x, t, equations::CompressibleEuler
 
   θref = 300.0 # Kelvin
   p0 = 1.0e5   # Pascal
-  xc = 0.0     # meter
-  zc = 260.0   # meter
+  xc = 500.0   # meter
+  zc = 350.0   # meter
   rc = 250.0   # meter
 
-  δθc = 0.5    # Kelvin
-
   r = sqrt((x[1] - xc)^2 + (x[2] - zc)^2)
-  δθ = r <= rc ? δθc : 0.0
-  θ = θref + δθ
+  θ = θref
+  if r <= rc
+    θ += 0.5 * (1 + cospi(r / rc))
+  end
 
-  π_exner = 1 - g / (cp * θ) * x[2]
+  π_exner = 1 - g / (cp * θref) * x[2]
   ϱ = p0 / (R * θ) * π_exner^(cv / R)
 
   ϱv1 = 0.0
@@ -84,8 +90,8 @@ indicator_sc = IndicatorHennemannGassner(equations, basis,
 volume_integral = VolumeIntegralFluxDifferencing(volume_flux)
 solver = DGSEM(basis, surface_flux, volume_integral)
 
-coordinates_min = (-1000.0, 0.0)
-coordinates_max = (+1000.0, 2000.0)
+coordinates_min = (0.0, 0.0)
+coordinates_max = (1000.0, 1000.0)
 mesh = TreeMesh(coordinates_min, coordinates_max,
                 initial_refinement_level = 5,
                 n_cells_max = 10_000,
@@ -139,7 +145,7 @@ semi = SemidiscretizationHyperbolic(mesh, equations, initial_condition_warm_risi
 ###############################################################################
 # ODE solvers, callbacks etc.
 
-tspan = (0.0, 1000.0)
+tspan = (0.0, 700.0)
 ode = semidiscretize(semi, tspan)
 
 summary_callback = SummaryCallback()
@@ -173,7 +179,7 @@ summary_callback() # print the timer summary
 julia> begin
        x = view(semi.cache.elements.node_coordinates, 1, :, :, :)
        y = view(semi.cache.elements.node_coordinates, 2, :, :, :)
-       u = Trixi.wrap_array_native(sol.u[end], semi)
+       u = Trixi.wrap_array_native(sol.u[1], semi)
        rho    = view(u, 1, :, :, :)
        rho_v1 = view(u, 2, :, :, :)
        rho_v2 = view(u, 3, :, :, :)
@@ -188,9 +194,11 @@ julia> begin
        p0 = 1.0e5
        T = @. p / (R * rho)
        θ = @. T * (p0 / p)^(1 - 1 / γ)
-       θref = 300.0
+       θ0 = 300.0
+       θref = θ0 # TODO
        pd = ScalarPlotData2D(θ .- θref, semi)
        plot(pd)
        end
+
 
 =#
