@@ -408,10 +408,10 @@ See also
     return SVector(f1, f2, f3)
 end
 
-# While `normal_direction` isn't strictly necessary in 1D, certain solvers assume that 
-# the normal component is incorporated into the numerical flux. 
-# 
-# See `flux(u, normal_direction::AbstractVector, equations::AbstractEquations{1})` for a 
+# While `normal_direction` isn't strictly necessary in 1D, certain solvers assume that
+# the normal component is incorporated into the numerical flux.
+#
+# See `flux(u, normal_direction::AbstractVector, equations::AbstractEquations{1})` for a
 # similar implementation.
 @inline function flux_ranocha(u_ll, u_rr, normal_direction::AbstractVector,
                               equations::CompressibleEulerEquations1D)
@@ -683,6 +683,90 @@ end
 
     return SVector(f1m, f2m, f3m)
 end
+
+# """
+#     splitting_perthame(u, orientation::Integer,
+#                        equations::CompressibleEulerEquations1D)
+#     splitting_perthame(u, which::Union{Val{:minus}, Val{:plus}}
+#                        orientation::Integer,
+#                        equations::CompressibleEulerEquations1D)
+
+# Splitting of the compressible Euler flux from Perthame.
+
+# Returns a tuple of the fluxes "minus" (associated with waves going into the
+# negative axis direction) and "plus" (associated with waves going into the
+# positive axis direction). If only one of the fluxes is required, use the
+# function signature with argument `which` set to `Val{:minus}()` or `Val{:plus}()`.
+
+# !!! warning "Experimental implementation (upwind SBP)"
+#     This is an experimental feature and may change in future releases.
+
+# ## References
+
+# - Benoit Perthame (1990)
+#   Boltzmann Type Schemes for Gas Dynamics and the Entropy Property
+#   [DOI: 10.1137/0727081](https://doi.org/10.1137/0727081)
+# """
+# @inline function splitting_coirier_vanleer(u, orientation::Integer,
+#                                            equations::CompressibleEulerEquations1D)
+#     fm = splitting_coirier_vanleer(u, Val{:minus}(), orientation, equations)
+#     fp = splitting_coirier_vanleer(u, Val{:plus}(), orientation, equations)
+#     return fm, fp
+# end
+
+# @inline function splitting_coirier_vanleer(u, ::Val{:plus}, orientation::Integer,
+#                                            equations::CompressibleEulerEquations1D)
+#     rho, rho_v1, rho_e = u
+#     v1 = rho_v1 / rho
+#     p = (equations.gamma - 1) * (rho_e - 0.5 * rho_v1 * v1)
+
+#     # sound speed and enthalpy
+#     a = sqrt(equations.gamma * p / rho)
+#     H = (rho_e + p) / rho
+
+#     # signed Mach number
+#     M = v1 / a
+
+#     P = 2
+#     mu = 1.0
+#     nu = 0.75
+#     omega = 2.0 # adjusted from suggested value of 1.5
+
+#     p_plus = 0.25 * ((M + 1)^2 * (2 - M) - nu * M * (M^2 - 1)^P) * p
+
+#     f1p = 0.25 * rho * a * ((M + 1)^2 - mu * (M^2 - 1)^P)
+#     f2p = f1p * v1 + p_plus
+#     f3p = f1p * H - omega * rho * a^3 * M^2 * (M^2 - 1)^2
+
+#     return SVector(f1p, f2p, f3p)
+# end
+
+# @inline function splitting_coirier_vanleer(u, ::Val{:minus}, orientation::Integer,
+#                                            equations::CompressibleEulerEquations1D)
+#     rho, rho_v1, rho_e = u
+#     v1 = rho_v1 / rho
+#     p = (equations.gamma - 1) * (rho_e - 0.5 * rho_v1 * v1)
+
+#     # sound speed and enthalpy
+#     a = sqrt(equations.gamma * p / rho)
+#     H = (rho_e + p) / rho
+
+#     # signed Mach number
+#     M = v1 / a
+
+#     P = 2
+#     mu = 1.0
+#     nu = 0.75
+#     omega = 2.0 # adjusted from suggested value of 1.5
+
+#     p_minus = 0.25 * ((M - 1)^2 * (2 + M) + nu * M * (M^2 - 1)^P) * p
+
+#     f1m = -0.25 * rho * a * ((M - 1)^2 - mu * (M^2 - 1)^P)
+#     f2m = f1m * v1 + p_minus
+#     f3m = f1m * H + omega * rho * a^3 * M^2 * (M^2 - 1)^2
+
+#     return SVector(f1m, f2m, f3m)
+# end
 
 # Calculate estimates for maximum wave speed for local Lax-Friedrichs-type dissipation as the
 # maximum velocity magnitude plus the maximum speed of sound
