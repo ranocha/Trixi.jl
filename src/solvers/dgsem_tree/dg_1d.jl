@@ -146,6 +146,43 @@ See also https://github.com/trixi-framework/Trixi.jl/issues/1671#issuecomment-17
     return nothing
 end
 
+# Specialized CPU version of `weak_form_kernel!` above operating on `PtrArray`s,
+# which are returned by `Trixi.wrap_array` whenever possible. See the comments
+# on the corresponding 2D method in `dgsem_tree/dg_2d.jl` for details.
+@inline function weak_form_kernel!(du::PtrArray, u::PtrArray,
+                                   element,
+                                   ::Type{<:Union{TreeMesh{1}, StructuredMesh{1}}},
+                                   have_nonconservative_terms::False, equations,
+                                   dg::DGSEM, cache, alpha = true)
+    # true * [some floating point value] == [exactly the same floating point value]
+    # This can (hopefully) be optimized away due to constant propagation.
+    @unpack derivative_hat = dg.basis
+
+    n = nnodes(dg)
+    flux_type = SVector{nvariables(equations), eltype(du)}
+
+    derivative_hat_static = SMatrix{n, n, eltype(derivative_hat)}(derivative_hat)
+
+    flux1_buffer = MVector{n, flux_type}(undef)
+    @inbounds for i in eachnode(dg)
+        u_node = get_node_vars(u, equations, dg, i, element)
+        flux1_buffer[i] = flux(u_node, 1, equations)
+    end
+
+    # Calculate volume terms in one element
+    @inbounds for i in eachnode(dg)
+        du_node = derivative_hat_static[i, 1] * flux1_buffer[1]
+        for m in 2:n
+            du_node = du_node + derivative_hat_static[i, m] * flux1_buffer[m]
+        end
+        for v in eachvariable(equations)
+            du[v, i, element] = du[v, i, element] + alpha * du_node[v]
+        end
+    end
+
+    return nothing
+end
+
 @inline function flux_differencing_kernel!(du, u, element,
                                            ::Type{<:Union{TreeMesh{1},
                                                           StructuredMesh{1}}},

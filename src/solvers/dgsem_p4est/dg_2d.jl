@@ -102,7 +102,9 @@ end
 
     i_primary = i_primary_start
     j_primary = j_primary_start
-    for i in index_range
+    # `@inbounds` is safe here since all indices are in-range by construction
+    # of the mesh connectivity and the index ranges.
+    @inbounds for i in index_range
         for v in eachvariable(equations)
             interfaces_u[1, v, i, interface] = u[v, i_primary, j_primary,
                                                  primary_element]
@@ -123,7 +125,7 @@ end
 
     i_secondary = i_secondary_start
     j_secondary = j_secondary_start
-    for i in index_range
+    @inbounds for i in index_range
         for v in eachvariable(equations)
             interfaces_u[2, v, i, interface] = u[v, i_secondary, j_secondary,
                                                  secondary_element]
@@ -329,14 +331,28 @@ end
         node_secondary_step = 1
     end
 
+    # Get the normal direction on the primary element.
+    # Contravariant vectors at interfaces in negative coordinate direction
+    # are pointing inwards; flip the sign to make them point outwards
+    # (cf. `get_normal_direction`). The sign factor is hoisted out of the
+    # node loop since it only depends on the (per-interface) direction;
+    # multiplying by ±1 is exact for floating point numbers.
+    orientation = (primary_direction + 1) >> 1
+    sign_factor = isodd(primary_direction) ? -one(eltype(contravariant_vectors)) :
+                  one(eltype(contravariant_vectors))
+
     for node in index_range
-        # Get the normal direction on the primary element.
-        # Contravariant vectors at interfaces in negative coordinate direction
-        # are pointing inwards. This is handled by `get_normal_direction`.
-        normal_direction = get_normal_direction(primary_direction,
-                                                contravariant_vectors,
-                                                i_primary, j_primary,
-                                                primary_element)
+        # The contravariant vectors are indexed directly (instead of using
+        # `get_normal_direction`) so that the loads are subject to `@inbounds`;
+        # all indices are in-range by construction of the mesh connectivity
+        # and the index ranges.
+        normal_direction = @inbounds sign_factor *
+                                     SVector(contravariant_vectors[1, orientation,
+                                                                   i_primary, j_primary,
+                                                                   primary_element],
+                                             contravariant_vectors[2, orientation,
+                                                                   i_primary, j_primary,
+                                                                   primary_element])
 
         calc_interface_flux!(surface_flux_values, MeshT, have_nonconservative_terms,
                              equations, surface_integral, SolverT, u_interface,
@@ -454,7 +470,9 @@ end
 
     flux_ = surface_flux(u_ll, u_rr, normal_direction, equations)
 
-    for v in eachvariable(equations)
+    # `@inbounds` is safe here since all indices are in-range by construction
+    # of the mesh connectivity and the index ranges.
+    @inbounds for v in eachvariable(equations)
         surface_flux_values[v, primary_node_index, primary_direction_index, primary_element_index] = flux_[v]
         surface_flux_values[v, secondary_node_index, secondary_direction_index, secondary_element_index] = -flux_[v]
     end
@@ -511,7 +529,7 @@ end
     noncons_secondary = nonconservative_flux(u_rr, u_ll, normal_direction, equations)
 
     # Store the flux with nonconservative terms on the primary and secondary elements
-    for v in eachvariable(equations)
+    @inbounds for v in eachvariable(equations)
         # Note the factor 0.5 necessary for the nonconservative fluxes based on
         # the interpretation of global SBP operators coupled discontinuously via
         # central fluxes/SATs
@@ -544,7 +562,7 @@ end
 
     flux_left, flux_right = surface_flux(u_ll, u_rr, normal_direction, equations)
 
-    for v in eachvariable(equations)
+    @inbounds for v in eachvariable(equations)
         surface_flux_values[v, primary_node_index, primary_direction_index, primary_element_index] = flux_left[v]
         surface_flux_values[v, secondary_node_index, secondary_direction_index, secondary_element_index] = -flux_right[v]
     end
@@ -1108,7 +1126,10 @@ end
     #
     # factor = inverse_weights[1]
     # For LGL basis: Identical to weighted boundary interpolation at x = ±1
-    for l in eachnode(dg)
+    #
+    # `@inbounds` is safe here since all indices are in-range by construction
+    # of the containers and the loop ranges.
+    @inbounds for l in eachnode(dg)
         for v in eachvariable(equations)
             # surface at -x
             du[v, 1, l, element] = (du[v, 1, l, element] +

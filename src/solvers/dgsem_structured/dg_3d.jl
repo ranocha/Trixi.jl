@@ -88,6 +88,72 @@ See also https://github.com/trixi-framework/Trixi.jl/issues/1671#issuecomment-17
     return nothing
 end
 
+# Specialized CPU version of `weak_form_kernel!` above operating on `PtrArray`s,
+# which are returned by `Trixi.wrap_array` whenever possible. See the comments
+# on the corresponding `TreeMesh` method in `dgsem_tree/dg_2d.jl` for details:
+# the contravariant fluxes of an element are buffered first and the derivative
+# contributions for each output node are then accumulated in a register, so that
+# each entry of `du` is loaded and stored only once.
+@inline function weak_form_kernel!(du::PtrArray, u::PtrArray,
+                                   element,
+                                   ::Type{<:Union{StructuredMesh{3}, P4estMesh{3},
+                                                  T8codeMesh{3}}},
+                                   have_nonconservative_terms::False, equations,
+                                   dg::DGSEM, cache, alpha = true)
+    # true * [some floating point value] == [exactly the same floating point value]
+    # This can (hopefully) be optimized away due to constant propagation.
+    @unpack derivative_hat = dg.basis
+    @unpack contravariant_vectors = cache.elements
+
+    n = nnodes(dg)
+    flux_type = SVector{nvariables(equations), eltype(du)}
+
+    derivative_hat_static = SMatrix{n, n, eltype(derivative_hat)}(derivative_hat)
+
+    flux1_buffer = MArray{Tuple{n, n, n}, flux_type}(undef)
+    flux2_buffer = MArray{Tuple{n, n, n}, flux_type}(undef)
+    flux3_buffer = MArray{Tuple{n, n, n}, flux_type}(undef)
+    @inbounds for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+        u_node = get_node_vars(u, equations, dg, i, j, k, element)
+
+        flux1 = flux(u_node, 1, equations)
+        flux2 = flux(u_node, 2, equations)
+        flux3 = flux(u_node, 3, equations)
+
+        # Compute the contravariant fluxes by taking the scalar product of the
+        # contravariant vectors Ja^1, Ja^2, Ja^3 and the flux vector
+        Ja11, Ja12, Ja13 = get_contravariant_vector(1, contravariant_vectors,
+                                                    i, j, k, element)
+        flux1_buffer[i, j, k] = Ja11 * flux1 + Ja12 * flux2 + Ja13 * flux3
+
+        Ja21, Ja22, Ja23 = get_contravariant_vector(2, contravariant_vectors,
+                                                    i, j, k, element)
+        flux2_buffer[i, j, k] = Ja21 * flux1 + Ja22 * flux2 + Ja23 * flux3
+
+        Ja31, Ja32, Ja33 = get_contravariant_vector(3, contravariant_vectors,
+                                                    i, j, k, element)
+        flux3_buffer[i, j, k] = Ja31 * flux1 + Ja32 * flux2 + Ja33 * flux3
+    end
+
+    # Calculate volume terms in one element
+    @inbounds for k in eachnode(dg), j in eachnode(dg), i in eachnode(dg)
+        du_node = derivative_hat_static[i, 1] * flux1_buffer[1, j, k] +
+                  derivative_hat_static[j, 1] * flux2_buffer[i, 1, k] +
+                  derivative_hat_static[k, 1] * flux3_buffer[i, j, 1]
+        for m in 2:n
+            du_node = du_node +
+                      derivative_hat_static[i, m] * flux1_buffer[m, j, k] +
+                      derivative_hat_static[j, m] * flux2_buffer[i, m, k] +
+                      derivative_hat_static[k, m] * flux3_buffer[i, j, m]
+        end
+        for v in eachvariable(equations)
+            du[v, i, j, k, element] = du[v, i, j, k, element] + alpha * du_node[v]
+        end
+    end
+
+    return nothing
+end
+
 # flux differencing volume integral on curvilinear hexahedral elements. Averaging of the
 # mapping terms, stored in `contravariant_vectors`, is peeled apart from the evaluation of
 # the physical fluxes in each Cartesian direction
@@ -956,12 +1022,17 @@ end
                                                      equations, dg, inverse_jacobian,
                                                      i, j, k, element)
     # Negative sign included to account for the negated surface and volume terms,
-    # see e.g. the computation of `derivative_hat` in the basis setup and 
+    # see e.g. the computation of `derivative_hat` in the basis setup and
     # the comment in `calc_surface_integral!`.
-    factor = -inverse_jacobian[i, j, k, element]
+    #
+    # `@inbounds` is safe here since all indices are in-range by construction
+    # of the containers and the loop ranges.
+    @inbounds begin
+        factor = -inverse_jacobian[i, j, k, element]
 
-    for v in eachvariable(equations)
-        du[v, i, j, k, element] *= factor
+        for v in eachvariable(equations)
+            du[v, i, j, k, element] *= factor
+        end
     end
     return nothing
 end

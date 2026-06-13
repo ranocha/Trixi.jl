@@ -219,6 +219,55 @@ See also https://github.com/trixi-framework/Trixi.jl/issues/1671#issuecomment-17
     return nothing
 end
 
+# Specialized CPU version of `weak_form_kernel!` above operating on `PtrArray`s,
+# which are returned by `Trixi.wrap_array` whenever possible, cf. the
+# specializations on `PtrArray` in `dgsem_structured/dg_2d_compressible_euler.jl`.
+# In particular, this method is not used on GPU backends or with automatic
+# differentiation. Compared to the generic fallback above, this version
+# - converts the derivative matrix to a statically sized `SMatrix` once per
+#   element, allowing the compiler to fully unroll the accumulation loops, and
+# - buffers all fluxes of an element first and then accumulates the contributions
+#   for each output node in a register, so that each entry of `du` is loaded and
+#   stored only once instead of `2 * nnodes(dg)` times (avoiding long
+#   store-to-load forwarding chains through memory).
+@inline function weak_form_kernel!(du::PtrArray, u::PtrArray,
+                                   element, ::Type{<:TreeMesh{2}},
+                                   have_nonconservative_terms::False, equations,
+                                   dg::DGSEM, cache, alpha = true)
+    # true * [some floating point value] == [exactly the same floating point value]
+    # This can (hopefully) be optimized away due to constant propagation.
+    @unpack derivative_hat = dg.basis
+
+    n = nnodes(dg)
+    flux_type = SVector{nvariables(equations), eltype(du)}
+
+    derivative_hat_static = SMatrix{n, n, eltype(derivative_hat)}(derivative_hat)
+
+    flux1_buffer = MMatrix{n, n, flux_type}(undef)
+    flux2_buffer = MMatrix{n, n, flux_type}(undef)
+    @inbounds for j in eachnode(dg), i in eachnode(dg)
+        u_node = get_node_vars(u, equations, dg, i, j, element)
+        flux1_buffer[i, j] = flux(u_node, 1, equations)
+        flux2_buffer[i, j] = flux(u_node, 2, equations)
+    end
+
+    # Calculate volume terms in one element
+    @inbounds for j in eachnode(dg), i in eachnode(dg)
+        du_node = derivative_hat_static[i, 1] * flux1_buffer[1, j] +
+                  derivative_hat_static[j, 1] * flux2_buffer[i, 1]
+        for k in 2:n
+            du_node = du_node +
+                      derivative_hat_static[i, k] * flux1_buffer[k, j] +
+                      derivative_hat_static[j, k] * flux2_buffer[i, k]
+        end
+        for v in eachvariable(equations)
+            du[v, i, j, element] = du[v, i, j, element] + alpha * du_node[v]
+        end
+    end
+
+    return nothing
+end
+
 @inline function flux_differencing_kernel!(du, u, element, ::Type{<:TreeMesh{2}},
                                            have_nonconservative_terms::False, equations,
                                            volume_flux, dg::DGSEM, cache, alpha = true)
@@ -517,21 +566,27 @@ function prolong2interfaces!(backend::Nothing, cache, u, mesh::TreeMesh{2}, equa
     @unpack orientations, neighbor_ids = interfaces
     interfaces_u = interfaces.u
 
+    # `@inbounds` is safe here since all indices are in-range by construction
+    # of the mesh connectivity and the loop ranges.
     @threaded for interface in eachinterface(dg, cache)
-        left_element = neighbor_ids[1, interface]
-        right_element = neighbor_ids[2, interface]
+        @inbounds begin
+            left_element = neighbor_ids[1, interface]
+            right_element = neighbor_ids[2, interface]
 
-        if orientations[interface] == 1
-            # interface in x-direction
-            for j in eachnode(dg), v in eachvariable(equations)
-                interfaces_u[1, v, j, interface] = u[v, nnodes(dg), j, left_element]
-                interfaces_u[2, v, j, interface] = u[v, 1, j, right_element]
-            end
-        else # if orientations[interface] == 2
-            # interface in y-direction
-            for i in eachnode(dg), v in eachvariable(equations)
-                interfaces_u[1, v, i, interface] = u[v, i, nnodes(dg), left_element]
-                interfaces_u[2, v, i, interface] = u[v, i, 1, right_element]
+            if orientations[interface] == 1
+                # interface in x-direction
+                for j in eachnode(dg), v in eachvariable(equations)
+                    interfaces_u[1, v, j, interface] = u[v, nnodes(dg), j,
+                                                         left_element]
+                    interfaces_u[2, v, j, interface] = u[v, 1, j, right_element]
+                end
+            else # if orientations[interface] == 2
+                # interface in y-direction
+                for i in eachnode(dg), v in eachvariable(equations)
+                    interfaces_u[1, v, i, interface] = u[v, i, nnodes(dg),
+                                                         left_element]
+                    interfaces_u[2, v, i, interface] = u[v, i, 1, right_element]
+                end
             end
         end
     end
@@ -603,26 +658,30 @@ function calc_interface_flux!(backend::Nothing, surface_flux_values,
     @unpack surface_flux = surface_integral
     @unpack u, neighbor_ids, orientations = cache.interfaces
 
+    # `@inbounds` is safe here since all indices are in-range by construction
+    # of the mesh connectivity and the loop ranges.
     @threaded for interface in eachinterface(dg, cache)
-        # Get neighboring elements
-        left_id = neighbor_ids[1, interface]
-        right_id = neighbor_ids[2, interface]
+        @inbounds begin
+            # Get neighboring elements
+            left_id = neighbor_ids[1, interface]
+            right_id = neighbor_ids[2, interface]
 
-        # Determine interface direction with respect to elements:
-        # orientation = 1: left -> 2, right -> 1
-        # orientation = 2: left -> 4, right -> 3
-        left_direction = 2 * orientations[interface]
-        right_direction = 2 * orientations[interface] - 1
+            # Determine interface direction with respect to elements:
+            # orientation = 1: left -> 2, right -> 1
+            # orientation = 2: left -> 4, right -> 3
+            left_direction = 2 * orientations[interface]
+            right_direction = 2 * orientations[interface] - 1
 
-        for i in eachnode(dg)
-            # Call pointwise Riemann solver
-            u_ll, u_rr = get_surface_node_vars(u, equations, dg, i, interface)
-            flux = surface_flux(u_ll, u_rr, orientations[interface], equations)
+            for i in eachnode(dg)
+                # Call pointwise Riemann solver
+                u_ll, u_rr = get_surface_node_vars(u, equations, dg, i, interface)
+                flux = surface_flux(u_ll, u_rr, orientations[interface], equations)
 
-            # Copy flux to left and right element storage
-            for v in eachvariable(equations)
-                surface_flux_values[v, i, left_direction, left_id] = flux[v]
-                surface_flux_values[v, i, right_direction, right_id] = flux[v]
+                # Copy flux to left and right element storage
+                for v in eachvariable(equations)
+                    surface_flux_values[v, i, left_direction, left_id] = flux[v]
+                    surface_flux_values[v, i, right_direction, right_id] = flux[v]
+                end
             end
         end
     end
@@ -1254,8 +1313,10 @@ function calc_surface_integral!(backend::Nothing, du, u,
     # We also use explicit assignments instead of `+=` to let `@muladd` turn these
     # into FMAs (see comment at the top of the file).
     factor = inverse_weights[1] # For LGL basis: Identical to weighted boundary interpolation at x = ±1
+    # `@inbounds` is safe here since all indices are in-range by construction
+    # of the containers and the loop ranges.
     @threaded for element in eachelement(dg, cache)
-        for l in eachnode(dg)
+        @inbounds for l in eachnode(dg)
             for v in eachvariable(equations)
                 # surface at -x
                 du[v, 1, l, element] = (du[v, 1, l, element] -

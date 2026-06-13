@@ -114,7 +114,7 @@ else
 end
 
 @reexport using StaticArrays: SVector
-using StaticArrays: StaticArrays, MVector, MArray, SMatrix, @SMatrix
+using StaticArrays: StaticArrays, MVector, MArray, SMatrix, MMatrix, @SMatrix
 using StrideArrays: PtrArray, StrideArray, StaticInt
 @reexport using StructArrays: StructArrays, StructArray
 using TimerOutputs: TimerOutputs, @notimeit, print_timer, reset_timer!
